@@ -16,6 +16,8 @@ A year-in-review extension for [Flarum](https://flarum.org "null") forums. Allow
 * 👤 **Personalized Rewind**: Individual metrics like post count, best posts, word counts, and night-owl statistics.
 * 🎨 **Slideshow UI**: Beautiful, animated slideshow interface for users to experience their year.
 * 🔌 **Ecosystem Integration**: Automatically fetches optional metrics if compatible extensions are enabled.
+* 🎭 **Customizable Blade Templates**: Full artistic freedom to override annual recaps with custom Laravel Blade templates that persist across Composer updates.
+* 🔀 **Per-Year Presentation Modes**: Choose between the animated interactive slideshow or custom Blade views on a per-year basis.
 * 📱 **Responsive Design**: Optimized layout for mobile, tablet, and desktop viewing.
 
 ## Installation
@@ -48,8 +50,21 @@ To remove simply run `composer remove huseyinfiliz/rewind`.
 1. Enable the **Rewind** extension in your admin panel.
 2. In the extension settings, select the year you want to generate a Rewind for (e.g., `2025`).
 3. Click the **Generate** button. (This process may take a few minutes depending on the size of your forum).
+4. Under the **Templates & Blade** tab, choose the desired **Presentation Format** (Interactive Slideshow or Custom Blade) for each year.
 
 > **Important Note**: Statistics for a past year are designed to be generated after that year has ended (e.g., generating 2025 data in January 2026).
+
+---
+
+## 🎭 Customizable Blade Templates
+
+In addition to the interactive animated slideshow, you can render annual recaps using custom Laravel Blade templates that persist across Composer updates:
+
+1. **Set Presentation Format**: In the admin panel under **Templates & Blade**, switch any year from *Interactive Story Slideshow* to *Custom Blade Template*.
+2. **Override Views**: Place custom `.blade.php` files inside `storage/rewind/views/`:
+   * **User recaps**: `user_{year}.blade.php` (e.g. `user_2025.blade.php`) or fallback `user.blade.php`
+   * **Community recaps**: `community_{year}.blade.php` (e.g. `community_2025.blade.php`) or fallback `community.blade.php`
+3. **Template Variables**: Views receive `$user`, `$metrics` array, `$year`, `$forumTitle`, `$baseUrl`, and `$actor`. The admin panel includes a complete variable reference and copyable snippets.
 
 ## Optional Integrations
 The rewind automatically integrates with these extensions when they are enabled:

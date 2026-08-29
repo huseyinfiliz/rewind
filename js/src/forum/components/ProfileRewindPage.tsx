@@ -3,6 +3,7 @@ import UserPage from 'flarum/forum/components/UserPage';
 import Button from 'flarum/common/components/Button';
 import Dropdown from 'flarum/common/components/Dropdown';
 import LoadingIndicator from 'flarum/common/components/LoadingIndicator';
+import { getYearRenderMode } from '../../common/utils/getYearRenderMode';
 import type Mithril from 'mithril';
 import type User from 'flarum/common/models/User';
 
@@ -45,7 +46,13 @@ export default class ProfileRewindPage extends UserPage {
   }
 
   openSlideshow(snapshot: any) {
-    m.route.set(app.route('huseyinfiliz-rewind.slideshow', { id: this.user!.id(), year: snapshot.year() }));
+    const renderMode = getYearRenderMode(snapshot.year());
+    if (renderMode === 'blade') {
+      const baseUrl = app.forum.attribute('baseUrl') || '';
+      window.location.href = `${baseUrl}/rewind/view/${this.user!.id()}/${snapshot.year()}`;
+    } else {
+      m.route.set(app.route('huseyinfiliz-rewind.slideshow', { id: this.user!.id(), year: snapshot.year() }));
+    }
   }
 
   async generateAndOpen() {

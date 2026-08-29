@@ -3,6 +3,7 @@ import ExtensionPage from 'flarum/admin/components/ExtensionPage';
 import type { SaveSubmitEvent } from 'flarum/admin/components/AdminPage';
 import Button from 'flarum/common/components/Button';
 import Switch from 'flarum/common/components/Switch';
+import Select from 'flarum/common/components/Select';
 import Form from 'flarum/common/components/Form';
 import GenerateModal from './GenerateModal';
 import type { GenerateStep } from './GenerateModal';
@@ -67,6 +68,27 @@ export default class RewindSettingsPage extends ExtensionPage {
   private activeTab: string = 'general';
   private slidesSubTab: string = 'user';
   private expandedSections: Set<string> = new Set(['core', 'community_overview']);
+  private historicalYears: number[] = [];
+
+  oninit(vnode: Mithril.Vnode<any, any>) {
+    super.oninit(vnode);
+    this.loadHistoricalYears();
+  }
+
+  async loadHistoricalYears() {
+    try {
+      const response = await app.request<{ years: Array<{ year: number }> }>({
+        method: 'POST',
+        url: app.forum.attribute('apiUrl') + '/rw-snaps/year-stats',
+      });
+      if (response && response.years) {
+        this.historicalYears = response.years.map((y) => Number(y.year)).filter((y) => !isNaN(y) && y >= 2000 && y <= 2100);
+        m.redraw();
+      }
+    } catch {
+      // Gracefully fall back to local years
+    }
+  }
 
   saveSettings(e: SaveSubmitEvent) {
     const yearRaw = this.setting('huseyinfiliz-rewind.active_year')();
@@ -85,12 +107,14 @@ export default class RewindSettingsPage extends ExtensionPage {
           <div className="RewindSettings-tabs">
             {this.tabButton('general', 'fas fa-cog', 'huseyinfiliz-rewind.admin.tabs.general')}
             {this.tabButton('slides', 'fas fa-layer-group', 'huseyinfiliz-rewind.admin.tabs.slides')}
+            {this.tabButton('templates', 'fas fa-code', 'huseyinfiliz-rewind.admin.tabs.templates')}
             {this.tabButton('advanced', 'fas fa-wrench', 'huseyinfiliz-rewind.admin.tabs.advanced')}
           </div>
         </div>
         <div className="RewindSettings-content">
           {this.activeTab === 'general' && this.generalTab()}
           {this.activeTab === 'slides' && this.slidesTab()}
+          {this.activeTab === 'templates' && this.templatesTab()}
           {this.activeTab === 'advanced' && this.advancedTab()}
         </div>
       </div>
@@ -399,5 +423,302 @@ export default class RewindSettingsPage extends ExtensionPage {
         return response.deleted;
       },
     });
+  }
+
+  templatesTab(): Mithril.Children {
+    const currentYearStr = String(new Date().getFullYear());
+    const activeYear = parseInt(this.setting('huseyinfiliz-rewind.active_year')() || currentYearStr, 10);
+
+    return (
+      <Form>
+        <div className="RewindSettings-templates">
+          <div className="RewindSettings-infoCard">
+            <div className="RewindSettings-infoCardHeader">
+              <i className="fas fa-magic" />
+              <div>
+                <h4>{app.translator.trans('huseyinfiliz-rewind.admin.settings.templates_title')}</h4>
+                <p>{app.translator.trans('huseyinfiliz-rewind.admin.settings.templates_help')}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="RewindSettings-section">
+            <h3>
+              <i className="fas fa-folder-open" /> {app.translator.trans('huseyinfiliz-rewind.admin.settings.templates_storage_locations')}
+            </h3>
+            <p className="helpText">{app.translator.trans('huseyinfiliz-rewind.admin.settings.templates_storage_help')}</p>
+
+            <div className="RewindSettings-pathsList">
+              <div className="RewindSettings-pathItem" onclick={() => this.copyToClipboard(`storage/rewind/views/user_${activeYear}.blade.php`)}>
+                <span className="RewindSettings-pathBadge">User (Year-Specific)</span>
+                <code>{`storage/rewind/views/user_${activeYear}.blade.php`}</code>
+                <i className="fas fa-copy RewindSettings-copyIcon" title="Click to copy" />
+              </div>
+              <div className="RewindSettings-pathItem" onclick={() => this.copyToClipboard('storage/rewind/views/user.blade.php')}>
+                <span className="RewindSettings-pathBadge">User (Default Fallback)</span>
+                <code>storage/rewind/views/user.blade.php</code>
+                <i className="fas fa-copy RewindSettings-copyIcon" title="Click to copy" />
+              </div>
+              <div className="RewindSettings-pathItem" onclick={() => this.copyToClipboard(`storage/rewind/views/community_${activeYear}.blade.php`)}>
+                <span className="RewindSettings-pathBadge">Community (Year-Specific)</span>
+                <code>{`storage/rewind/views/community_${activeYear}.blade.php`}</code>
+                <i className="fas fa-copy RewindSettings-copyIcon" title="Click to copy" />
+              </div>
+              <div className="RewindSettings-pathItem" onclick={() => this.copyToClipboard('storage/rewind/views/community.blade.php')}>
+                <span className="RewindSettings-pathBadge">Community (Default Fallback)</span>
+                <code>storage/rewind/views/community.blade.php</code>
+                <i className="fas fa-copy RewindSettings-copyIcon" title="Click to copy" />
+              </div>
+            </div>
+          </div>
+
+          <div className="RewindSettings-section">
+            <h3>
+              <i className="fas fa-calendar-alt" /> {app.translator.trans('huseyinfiliz-rewind.admin.settings.year_presentation_modes_title')}
+            </h3>
+            <p className="helpText">{app.translator.trans('huseyinfiliz-rewind.admin.settings.year_presentation_modes_help')}</p>
+
+            <div className="RewindSettings-yearModesTable">
+              {this.getAllDisplayYears().map((year) => {
+                const yearModes = this.getYearModes();
+                const currentMode = yearModes[String(year)] || '';
+
+                return (
+                  <div className="RewindSettings-yearModeRow">
+                    <div className="RewindSettings-yearModeYear">
+                      <strong>{year}</strong>
+                      {parseInt(this.setting('huseyinfiliz-rewind.active_year')() || currentYearStr, 10) === year && (
+                        <span className="RewindSettings-pathBadge">Active</span>
+                      )}
+                    </div>
+                    <Select
+                      value={currentMode || 'slideshow'}
+                      options={{
+                        slideshow: app.translator.trans('huseyinfiliz-rewind.admin.settings.render_mode_slideshow') as string,
+                        blade: app.translator.trans('huseyinfiliz-rewind.admin.settings.render_mode_blade') as string,
+                      }}
+                      onchange={(mode: string) => this.setYearMode(year, mode)}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="Form-group">{this.submitButton()}</div>
+
+          <div className="RewindSettings-section">
+            <h3>
+              <i className="fas fa-code" /> {app.translator.trans('huseyinfiliz-rewind.admin.settings.templates_variables_title')}
+            </h3>
+            <p className="helpText">{app.translator.trans('huseyinfiliz-rewind.admin.settings.templates_variables_help')}</p>
+
+            <div className="RewindSettings-varsGrid">
+              {/* User Info & Actor */}
+              <div className="RewindSettings-varCard">
+                <div className="RewindSettings-varCardTitle">
+                  <i className="fas fa-user" /> User & Forum Context
+                </div>
+                <div className="RewindSettings-varList">
+                  {this.renderVarRow('$user->username', 'Username handle')}
+                  {this.renderVarRow('$user->display_name', 'Display name')}
+                  {this.renderVarRow('$user->avatar_url', 'Avatar image URL')}
+                  {this.renderVarRow('$user->id', 'User ID number')}
+                  {this.renderVarRow('$year', 'Active rewind year')}
+                  {this.renderVarRow('$forumTitle', 'Forum title string')}
+                  {this.renderVarRow('$isOwner', 'True if viewer is owner')}
+                  {this.renderVarRow('$canModerate', 'True if viewer is admin/moderator')}
+                </div>
+              </div>
+
+              {/* Core User Metrics */}
+              <div className="RewindSettings-varCard">
+                <div className="RewindSettings-varCardTitle">
+                  <i className="fas fa-chart-bar" /> User Activity Metrics
+                </div>
+                <div className="RewindSettings-varList">
+                  {this.renderVarRow("$metrics['post_count']['count']", 'Total posts created')}
+                  {this.renderVarRow("$metrics['discussion_count']['count']", 'Total discussions started')}
+                  {this.renderVarRow("$metrics['active_days']['count']", 'Total active days in year')}
+                  {this.renderVarRow("$metrics['word_count']['count']", 'Total words written')}
+                  {this.renderVarRow("$metrics['most_active_month']['peak_month']", 'Peak active month (1-12)')}
+                  {this.renderVarRow("$metrics['most_active_month']['peak_count']", 'Posts in peak month')}
+                  {this.renderVarRow("$metrics['night_owl']['peak_hour']", 'Most active hour (0-23)')}
+                  {this.renderVarRow("$metrics['night_owl']['is_night_owl']", 'True if active at night')}
+                </div>
+              </div>
+
+              {/* Social & Content */}
+              <div className="RewindSettings-varCard">
+                <div className="RewindSettings-varCardTitle">
+                  <i className="fas fa-heart" /> Social & Content
+                </div>
+                <div className="RewindSettings-varList">
+                  {this.renderVarRow("$metrics['best_post']['content_html']", 'HTML content of top post')}
+                  {this.renderVarRow("$metrics['best_post']['discussion_title']", 'Title of thread')}
+                  {this.renderVarRow("$metrics['best_post']['count']", 'Likes/reactions count')}
+                  {this.renderVarRow("$metrics['top_tag']['tag_name']", 'Top tag name')}
+                  {this.renderVarRow("$metrics['top_tag']['tag_color']", 'Tag color code')}
+                  {this.renderVarRow("$metrics['best_friend']['display_name']", 'Top collaborator name')}
+                  {this.renderVarRow("$metrics['best_friend']['avatar_url']", 'Collaborator avatar URL')}
+                  {this.renderVarRow("$metrics['likes_received']['count']", 'Total likes received')}
+                  {this.renderVarRow("$metrics['likes_given']['count']", 'Total likes given')}
+                  {this.renderVarRow("$metrics['best_answers']['count']", 'Best answers solved')}
+                  {this.renderVarRow("$metrics['badges_earned']['count']", 'Badges earned')}
+                </div>
+              </div>
+
+              {/* Community Metrics */}
+              <div className="RewindSettings-varCard">
+                <div className="RewindSettings-varCardTitle">
+                  <i className="fas fa-users" /> Community Metrics
+                </div>
+                <div className="RewindSettings-varList">
+                  {this.renderVarRow("$metrics['new_users']['count']", 'New members registered')}
+                  {this.renderVarRow("$metrics['total_posts']['count']", 'Forum-wide total posts')}
+                  {this.renderVarRow("$metrics['total_discussions']['count']", 'Forum-wide discussions')}
+                  {this.renderVarRow("$metrics['total_words']['total_words']", 'Total words across forum')}
+                  {this.renderVarRow("$metrics['busiest_month']['peak_month']", 'Community busiest month')}
+                  {this.renderVarRow("$metrics['peak_hour']['peak_hour']", 'Community peak hour (0-23)')}
+                  {this.renderVarRow("$metrics['top_tag']['name']", 'Most used tag')}
+                  {this.renderVarRow("$metrics['top_discussion']['title']", 'Most active discussion')}
+                  {this.renderVarRow("$metrics['most_active_user']['username']", 'Top member username')}
+                  {this.renderVarRow("$metrics['most_loved']['username']", 'Most loved member')}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="RewindSettings-section">
+            <h3>
+              <i className="fas fa-terminal" /> {app.translator.trans('huseyinfiliz-rewind.admin.settings.templates_examples_title')}
+            </h3>
+
+            <div className="RewindSettings-snippetBox">
+              <div className="RewindSettings-snippetHeader">
+                <span>Example 1: Displaying a Stat Card with Blade</span>
+                <button
+                  className="Button Button--link"
+                  onclick={() =>
+                    this.copyToClipboard(
+                      `<div class="stat-card">\n    <h3>{{ $user->display_name }}'s {{ $year }} Stats</h3>\n    <p>You wrote <strong>{{ number_format($metrics['post_count']['count'] ?? 0) }}</strong> posts!</p>\n</div>`
+                    )
+                  }
+                >
+                  <i className="fas fa-copy" /> Copy
+                </button>
+              </div>
+              <pre className="RewindSettings-codeBlock">
+                {`<div class="stat-card">
+    <h3>{{ $user->display_name }}'s {{ $year }} Stats</h3>
+    <p>You wrote <strong>{{ number_format($metrics['post_count']['count'] ?? 0) }}</strong> posts!</p>
+</div>`}
+              </pre>
+            </div>
+
+            <div className="RewindSettings-snippetBox">
+              <div className="RewindSettings-snippetHeader">
+                <span>Example 2: Looping through Top Words / Emojis</span>
+                <button
+                  className="Button Button--link"
+                  onclick={() =>
+                    this.copyToClipboard(
+                      `@foreach($metrics['top_words']['words'] ?? [] as $w)\n    <span class="badge">{{ $w['word'] }} ({{ $w['count'] }})</span>\n@endforeach`
+                    )
+                  }
+                >
+                  <i className="fas fa-copy" /> Copy
+                </button>
+              </div>
+              <pre className="RewindSettings-codeBlock">
+                {`@foreach($metrics['top_words']['words'] ?? [] as $w)
+    <span class="badge">{{ $w['word'] }} ({{ $w['count'] }})</span>
+@endforeach`}
+              </pre>
+            </div>
+
+            <div className="RewindSettings-snippetBox">
+              <div className="RewindSettings-snippetHeader">
+                <span>Example 3: Conditional Collaborator Highlight</span>
+                <button
+                  className="Button Button--link"
+                  onclick={() =>
+                    this.copyToClipboard(
+                      `@if(!empty($metrics['best_friend']['username']))\n    <div class="best-friend">\n        <span>Best Friend: {{ $metrics['best_friend']['display_name'] }}</span>\n        <span>{{ $metrics['best_friend']['interaction_count'] }} interactions</span>\n    </div>\n@endif`
+                    )
+                  }
+                >
+                  <i className="fas fa-copy" /> Copy
+                </button>
+              </div>
+              <pre className="RewindSettings-codeBlock">
+                {`@if(!empty($metrics['best_friend']['username']))
+    <div class="best-friend">
+        <span>Best Friend: {{ $metrics['best_friend']['display_name'] }}</span>
+        <span>{{ $metrics['best_friend']['interaction_count'] }} interactions</span>
+    </div>
+@endif`}
+              </pre>
+            </div>
+          </div>
+        </div>
+      </Form>
+    );
+  }
+
+  renderVarRow(variable: string, desc: string): Mithril.Children {
+    return (
+      <div className="RewindSettings-varRow" onclick={() => this.copyToClipboard(`{{ ${variable} }}`)}>
+        <code className="RewindSettings-varCode">{variable}</code>
+        <span className="RewindSettings-varDesc">{desc}</span>
+        <i className="fas fa-copy RewindSettings-varCopy" title="Copy Blade tag" />
+      </div>
+    );
+  }
+
+  copyToClipboard(text: string) {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(() => {
+        app.alerts.show({ type: 'success' }, `Copied: ${text}`);
+      });
+    }
+  }
+
+  getYearModes(): Record<string, string> {
+    const raw = this.setting('huseyinfiliz-rewind.year_render_modes')();
+    try {
+      return typeof raw === 'string' ? JSON.parse(raw || '{}') : raw || {};
+    } catch {
+      return {};
+    }
+  }
+
+  setYearMode(year: string | number, mode: string) {
+    const modes = { ...this.getYearModes() };
+    if (!mode || mode === 'slideshow') {
+      delete modes[String(year)];
+    } else {
+      modes[String(year)] = mode;
+    }
+    this.setting('huseyinfiliz-rewind.year_render_modes')(JSON.stringify(modes));
+    m.redraw();
+  }
+
+  getAllDisplayYears(): number[] {
+    const activeYear = parseInt(this.setting('huseyinfiliz-rewind.active_year')() || String(new Date().getFullYear()), 10);
+    const set = new Set<number>([activeYear]);
+
+    this.historicalYears.forEach((y) => {
+      set.add(y);
+    });
+
+    const modes = this.getYearModes();
+    Object.keys(modes).forEach((y) => {
+      const parsed = parseInt(y, 10);
+      if (!isNaN(parsed) && parsed >= 2000 && parsed <= 2100) {
+        set.add(parsed);
+      }
+    });
+    return Array.from(set).sort((a, b) => b - a);
   }
 }

@@ -5,6 +5,7 @@ import Button from 'flarum/common/components/Button';
 import Link from 'flarum/common/components/Link';
 import LoadingIndicator from 'flarum/common/components/LoadingIndicator';
 import IndexSidebar from 'flarum/forum/components/IndexSidebar';
+import { getYearRenderMode } from '../../common/utils/getYearRenderMode';
 import type Mithril from 'mithril';
 
 export default class ForumRewindPage extends Page {
@@ -279,7 +280,15 @@ export default class ForumRewindPage extends Page {
         {hasContent ? (
           <div
             className="RewindPage-slideshowBanner"
-            onclick={() => m.route.set(app.route('huseyinfiliz-rewind.community-slideshow', { year: this.selectedYear }))}
+            onclick={() => {
+              const renderMode = getYearRenderMode(this.selectedYear);
+              if (renderMode === 'blade') {
+                const baseUrl = app.forum.attribute('baseUrl') || '';
+                window.location.href = `${baseUrl}/rewind/view/${this.selectedYear}`;
+              } else {
+                m.route.set(app.route('huseyinfiliz-rewind.community-slideshow', { year: this.selectedYear }));
+              }
+            }}
           >
             <div className="RewindPage-slideshowBannerBg" />
             <div className="RewindPage-slideshowBannerContent">

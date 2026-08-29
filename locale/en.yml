@@ -3,6 +3,7 @@ huseyinfiliz-rewind:
     tabs:
       general: General
       slides: Slides
+      templates: Templates & Blade
       advanced: Advanced
 
     settings:
@@ -58,6 +59,17 @@ huseyinfiliz-rewind:
       delete_rewinds_title: Delete User Rewinds
       delete_rewinds_help: "Delete user rewind snapshots by year and optionally by group."
       delete_rewinds_button: Delete Rewinds
+      templates_title: Customizable Blade Templates
+      templates_help: "You can customize the Rewind annual recap with full artistic freedom by placing Blade template files in your forum's storage directory. Custom templates in storage/ are never overwritten by composer updates."
+      templates_storage_locations: Storage Locations
+      templates_storage_help: "To override a template, create a .blade.php file inside 'storage/rewind/views/' in your Flarum root directory:"
+      templates_variables_title: Available Blade Variables & Cheatsheet
+      templates_variables_help: "All computed metrics are passed directly to your Blade templates as variables. Click any snippet to copy."
+      templates_examples_title: Example Usage Snippets
+      year_presentation_modes_title: Presentation Format by Year
+      year_presentation_modes_help: Choose whether each year displays the built-in interactive animated slideshow or a custom Blade template.
+      render_mode_slideshow: "Interactive Story Slideshow (Mithril & Anime.js)"
+      render_mode_blade: "Custom Blade Template (storage/rewind/views/)"
 
     generate_modal:
       community_title: Generate Community Rewind

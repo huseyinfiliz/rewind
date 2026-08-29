@@ -301,3 +301,266 @@
   justify-content: flex-end;
   gap: 8px;
 }
+
+/* Templates & Cheatsheet Tab */
+.RewindSettings-templates {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.RewindSettings-infoCard {
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: @rw-admin-radius;
+  padding: 16px 20px;
+
+  .RewindSettings-infoCardHeader {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+
+    i {
+      font-size: 20px;
+      color: #6366f1;
+      margin-top: 2px;
+    }
+
+    h4 {
+      font-size: 15px;
+      font-weight: 700;
+      margin: 0 0 4px 0;
+      color: var(--text-color);
+    }
+
+    p {
+      font-size: 13px;
+      color: var(--muted-color);
+      margin: 0;
+      line-height: 1.5;
+    }
+  }
+}
+
+.RewindSettings-section {
+  h3 {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0 0 6px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-color);
+
+    i {
+      color: var(--primary-color);
+      font-size: 14px;
+    }
+  }
+
+  .helpText {
+    margin-bottom: 14px;
+  }
+}
+
+.RewindSettings-pathsList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.RewindSettings-pathItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--control-bg);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all @rw-admin-transition ease;
+
+  &:hover {
+    background: var(--body-bg);
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+
+    .RewindSettings-copyIcon {
+      opacity: 1;
+      color: var(--primary-color);
+    }
+  }
+
+  code {
+    flex: 1;
+    font-size: 13px;
+    color: var(--text-color);
+    font-family: monospace;
+  }
+
+  .RewindSettings-copyIcon {
+    opacity: 0.3;
+    font-size: 13px;
+    transition: opacity @rw-admin-transition ease;
+  }
+}
+
+.RewindSettings-pathBadge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--primary-color);
+  color: #fff;
+  white-space: nowrap;
+}
+
+.RewindSettings-varsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.RewindSettings-varCard {
+  border: 1px solid var(--control-bg);
+  border-radius: @rw-admin-radius;
+  background: var(--body-bg);
+  overflow: hidden;
+}
+
+.RewindSettings-varCardTitle {
+  padding: 10px 16px;
+  background: var(--control-bg);
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-color);
+
+  i {
+    font-size: 12px;
+    color: var(--primary-color);
+  }
+}
+
+.RewindSettings-varList {
+  display: flex;
+  flex-direction: column;
+}
+
+.RewindSettings-varRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  cursor: pointer;
+  transition: background @rw-admin-transition ease;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover {
+    background: var(--control-bg);
+
+    .RewindSettings-varCopy {
+      opacity: 1;
+      color: var(--primary-color);
+    }
+  }
+}
+
+.RewindSettings-varCode {
+  font-size: 12px;
+  font-family: monospace;
+  color: #c026d3;
+  font-weight: 600;
+}
+
+.RewindSettings-varDesc {
+  font-size: 11px;
+  color: var(--muted-color);
+  margin: 0 10px;
+  flex: 1;
+  text-align: right;
+}
+
+.RewindSettings-varCopy {
+  opacity: 0.2;
+  font-size: 11px;
+  transition: opacity @rw-admin-transition ease;
+}
+
+.RewindSettings-snippetBox {
+  border: 1px solid var(--control-bg);
+  border-radius: @rw-admin-radius;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+.RewindSettings-snippetHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: var(--control-bg);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-color);
+
+  .Button--link {
+    font-size: 12px;
+    padding: 0;
+    color: var(--primary-color);
+  }
+}
+
+.RewindSettings-codeBlock {
+  margin: 0;
+  padding: 14px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 12px;
+  font-family: monospace;
+  overflow-x: auto;
+  line-height: 1.5;
+}
+
+.RewindSettings-yearModesTable {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--body-bg);
+  border: 1px solid var(--control-bg);
+  border-radius: @rw-admin-radius;
+  padding: 12px;
+}
+
+.RewindSettings-yearModeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 14px;
+  background: var(--control-bg);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 6px;
+  transition: all @rw-admin-transition ease;
+
+  &:hover {
+    border-color: rgba(0, 0, 0, 0.12);
+  }
+}
+
+.RewindSettings-yearModeYear {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+

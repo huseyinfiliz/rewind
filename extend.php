@@ -18,6 +18,8 @@ use Flarum\Extend;
 use Flarum\Search\Database\DatabaseSearchDriver;
 use HuseyinFiliz\Rewind\Api\Resource\CommunitySnapshotResource;
 use HuseyinFiliz\Rewind\Api\Resource\RewindSnapshotResource;
+use HuseyinFiliz\Rewind\Http\Controller\ShowCommunityRewindBladeController;
+use HuseyinFiliz\Rewind\Http\Controller\ShowUserRewindBladeController;
 use HuseyinFiliz\Rewind\Model\CommunitySnapshot;
 use HuseyinFiliz\Rewind\Model\RewindSnapshot;
 
@@ -27,10 +29,15 @@ return [
         ->jsDirectory(__DIR__.'/js/dist/forum')
         ->css(__DIR__.'/less/forum.less')
         ->route('/rewind', 'huseyinfiliz-rewind.forum')
-        ->route('/rewind/view/{id}/{year}', 'huseyinfiliz-rewind.slideshow')
-        ->route('/rewind/view/{year}', 'huseyinfiliz-rewind.community-slideshow')
-        ->route('/rewind/view', 'huseyinfiliz-rewind.community-slideshow-default')
         ->route('/u/{username}/rewind', 'huseyinfiliz-rewind.profile'),
+
+    (new Extend\Routes('forum'))
+        ->get('/rewind/view/{id:[0-9]+}/{year:[0-9]+}', 'huseyinfiliz-rewind.blade.user', ShowUserRewindBladeController::class)
+        ->get('/rewind/view/{year:[0-9]+}', 'huseyinfiliz-rewind.blade.community', ShowCommunityRewindBladeController::class)
+        ->get('/rewind/view', 'huseyinfiliz-rewind.blade.community-default', ShowCommunityRewindBladeController::class),
+
+    (new Extend\View())
+        ->namespace('rewind', __DIR__.'/resources/views'),
 
     (new Extend\Frontend('admin'))
         ->js(__DIR__.'/js/dist/admin.js')
@@ -82,11 +89,13 @@ return [
 
     (new Extend\Settings())
         ->serializeToForum('rewindEnabled', 'huseyinfiliz-rewind.enabled', 'boolval')
+        ->serializeToForum('rewindYearRenderModes', 'huseyinfiliz-rewind.year_render_modes')
         ->serializeToForum('rewindActiveYear', 'huseyinfiliz-rewind.active_year', 'intval')
         ->serializeToForum('rewindShowMenu', 'huseyinfiliz-rewind.show_menu_link', 'boolval')
         ->serializeToForum('rewindHiddenUserSlides', 'huseyinfiliz-rewind.hidden_user_slides')
         ->serializeToForum('rewindHiddenCommunitySlides', 'huseyinfiliz-rewind.hidden_community_slides')
         ->default('huseyinfiliz-rewind.enabled', false)
+        ->default('huseyinfiliz-rewind.year_render_modes', '{}')
         ->default('huseyinfiliz-rewind.active_year', 2025)
         ->default('huseyinfiliz-rewind.show_menu_link', true)
         ->default('huseyinfiliz-rewind.hidden_user_slides', '[]')
