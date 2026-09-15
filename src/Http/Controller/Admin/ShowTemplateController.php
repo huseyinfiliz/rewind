@@ -48,7 +48,7 @@ class ShowTemplateController implements RequestHandlerInterface
             ], 404);
         } catch (\Throwable $e) {
             return new JsonResponse([
-                'error' => 'Failed to load template: ' . $e->getMessage(),
+                'error' => 'Failed to load template: '.$e->getMessage(),
             ], 500);
         }
     }

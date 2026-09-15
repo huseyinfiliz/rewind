@@ -59,7 +59,7 @@ class CreateTemplateController implements RequestHandlerInterface
             ], 409);
         } catch (\Throwable $e) {
             return new JsonResponse([
-                'error' => 'Failed to create template: ' . $e->getMessage(),
+                'error' => 'Failed to create template: '.$e->getMessage(),
             ], 500);
         }
     }

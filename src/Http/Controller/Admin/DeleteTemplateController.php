@@ -48,7 +48,7 @@ class DeleteTemplateController implements RequestHandlerInterface
             ], 404);
         } catch (\Throwable $e) {
             return new JsonResponse([
-                'error' => 'Failed to delete template: ' . $e->getMessage(),
+                'error' => 'Failed to delete template: '.$e->getMessage(),
             ], 500);
         }
     }

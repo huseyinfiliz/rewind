@@ -45,7 +45,7 @@ class TemplateManagementTest extends TestCase
         ]);
 
         $paths = $this->app()->getContainer()->make(Paths::class);
-        $this->storageViewsDir = rtrim($paths->storage, '/\\') . '/rewind/views';
+        $this->storageViewsDir = rtrim($paths->storage, '/\\').'/rewind/views';
 
         if (! is_dir($this->storageViewsDir)) {
             @mkdir($this->storageViewsDir, 0755, true);
@@ -65,7 +65,7 @@ class TemplateManagementTest extends TestCase
 
     protected function trackFile(string $filename): string
     {
-        $path = $this->storageViewsDir . '/' . $filename;
+        $path = $this->storageViewsDir.'/'.$filename;
         $this->createdFiles[] = $path;
 
         return $path;
@@ -160,9 +160,9 @@ class TemplateManagementTest extends TestCase
         $this->assertEquals('user_2027.blade.php', $body['template']['filename']);
         $this->assertStringContainsString('@extends(\'rewind::layout\')', $body['template']['content']);
 
-        $filePath = $this->storageViewsDir . '/user_2027.blade.php';
+        $filePath = $this->storageViewsDir.'/user_2027.blade.php';
         $this->assertFileExists($filePath);
-        $this->assertStringContainsString('2027', file_get_contents($filePath) . '2027');
+        $this->assertStringContainsString('2027', file_get_contents($filePath).'2027');
     }
 
     #[Test]
@@ -185,7 +185,7 @@ class TemplateManagementTest extends TestCase
         $this->assertEquals('community', $body['template']['id']);
         $this->assertEquals('community.blade.php', $body['template']['filename']);
         $this->assertNull($body['template']['year']);
-        $this->assertFileExists($this->storageViewsDir . '/community.blade.php');
+        $this->assertFileExists($this->storageViewsDir.'/community.blade.php');
     }
 
     #[Test]
@@ -207,7 +207,7 @@ class TemplateManagementTest extends TestCase
 
         $this->assertEquals('error', $body['template']['id']);
         $this->assertEquals('error.blade.php', $body['template']['filename']);
-        $this->assertFileExists($this->storageViewsDir . '/error.blade.php');
+        $this->assertFileExists($this->storageViewsDir.'/error.blade.php');
     }
 
     #[Test]
@@ -233,7 +233,7 @@ class TemplateManagementTest extends TestCase
     {
         $this->trackFile('user_2028.blade.php');
 
-        $filePath = $this->storageViewsDir . '/user_2028.blade.php';
+        $filePath = $this->storageViewsDir.'/user_2028.blade.php';
         file_put_contents($filePath, 'EXISTING CONTENT DO NOT OVERWRITE');
 
         $response = $this->send(
@@ -311,7 +311,7 @@ class TemplateManagementTest extends TestCase
         $this->assertEquals(200, $response->getStatusCode());
         $body = json_decode((string) $response->getBody(), true);
         $this->assertEquals($newContent, $body['template']['content']);
-        $this->assertEquals($newContent, file_get_contents($this->storageViewsDir . '/user_2029.blade.php'));
+        $this->assertEquals($newContent, file_get_contents($this->storageViewsDir.'/user_2029.blade.php'));
 
         // 4. Resolver picks up custom template
         /** @var RewindViewResolver $resolver */
@@ -324,7 +324,7 @@ class TemplateManagementTest extends TestCase
             $this->request('DELETE', '/api/rewind-templates/user_2029', ['authenticatedAs' => 1])
         );
         $this->assertEquals(200, $response->getStatusCode());
-        $this->assertFileDoesNotExist($this->storageViewsDir . '/user_2029.blade.php');
+        $this->assertFileDoesNotExist($this->storageViewsDir.'/user_2029.blade.php');
 
         // 6. After deletion, resolver falls back to built-in template
         $resolvedFallback = $resolver->resolveUserView(2029);
