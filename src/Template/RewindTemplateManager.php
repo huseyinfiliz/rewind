@@ -29,8 +29,8 @@ class RewindTemplateManager
         protected Paths $paths,
         protected ?ViewFactory $viewFactory = null,
     ) {
-        $this->storageViewsPath = rtrim($this->paths->storage, '/\\') . '/rewind/views';
-        $this->builtinViewsPath = dirname(__DIR__, 2) . '/resources/views';
+        $this->storageViewsPath = rtrim($this->paths->storage, '/\\').'/rewind/views';
+        $this->builtinViewsPath = dirname(__DIR__, 2).'/resources/views';
     }
 
     public function getStorageViewsPath(): string
@@ -51,7 +51,7 @@ class RewindTemplateManager
         $type = strtolower(trim($type));
 
         if (! in_array($type, self::ALLOWED_TYPES, true)) {
-            throw new InvalidTemplateException("Invalid template type '{$type}'. Allowed types: " . implode(', ', self::ALLOWED_TYPES));
+            throw new InvalidTemplateException("Invalid template type '{$type}'. Allowed types: ".implode(', ', self::ALLOWED_TYPES));
         }
 
         if ($type === 'error') {
@@ -89,8 +89,8 @@ class RewindTemplateManager
                 'year' => null,
                 'filename' => 'error.blade.php',
                 'title' => 'Error Page (Default)',
-                'builtinPath' => $this->builtinViewsPath . '/error.blade.php',
-                'customPath' => $this->storageViewsPath . '/error.blade.php',
+                'builtinPath' => $this->builtinViewsPath.'/error.blade.php',
+                'customPath' => $this->storageViewsPath.'/error.blade.php',
             ];
         }
 
@@ -112,8 +112,8 @@ class RewindTemplateManager
                 'year' => $year,
                 'filename' => $filename,
                 'title' => $title,
-                'builtinPath' => $this->builtinViewsPath . "/{$type}.blade.php",
-                'customPath' => $this->storageViewsPath . "/{$filename}",
+                'builtinPath' => $this->builtinViewsPath."/{$type}.blade.php",
+                'customPath' => $this->storageViewsPath."/{$filename}",
             ];
         }
 
@@ -344,13 +344,13 @@ class RewindTemplateManager
             $this->viewFactory->flushFinderCache();
         }
 
-        $compiledViewsDir = rtrim($this->paths->storage, '/\\') . '/views';
+        $compiledViewsDir = rtrim($this->paths->storage, '/\\').'/views';
 
         if (! is_dir($compiledViewsDir)) {
             return;
         }
 
-        $files = glob($compiledViewsDir . '/*.php');
+        $files = glob($compiledViewsDir.'/*.php');
         if (is_array($files)) {
             foreach ($files as $file) {
                 if (is_file($file)) {
