@@ -24,10 +24,6 @@ class BadgeLeaderboard implements CommunityMetric
 
     public function calculate(int $year): array
     {
-        if (! $this->db->getSchemaBuilder()->hasTable('fof_badge_user')) {
-            return ['users' => []];
-        }
-
         $users = $this->db->table('fof_badge_user')
             ->join('users', 'users.id', '=', 'fof_badge_user.user_id')
             ->whereYear('fof_badge_user.earned_at', $year)

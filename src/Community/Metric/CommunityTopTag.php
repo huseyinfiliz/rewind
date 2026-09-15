@@ -24,10 +24,6 @@ class CommunityTopTag implements CommunityMetric
 
     public function calculate(int $year): array
     {
-        if (! $this->db->getSchemaBuilder()->hasTable('tags')) {
-            return ['id' => null, 'name' => null, 'slug' => null, 'discussion_count' => 0];
-        }
-
         $prefix = $this->db->getTablePrefix();
 
         $result = $this->db->table('discussion_tag')

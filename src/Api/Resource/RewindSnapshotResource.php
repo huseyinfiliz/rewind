@@ -25,6 +25,7 @@ class RewindSnapshotResource extends AbstractDatabaseResource
     public function __construct(
         protected MetricRegistry $metricRegistry,
         protected SettingsRepositoryInterface $settings,
+        protected ?\Illuminate\Contracts\Cache\Repository $cache = null,
     ) {
     }
 
@@ -43,10 +44,10 @@ class RewindSnapshotResource extends AbstractDatabaseResource
         /** @var Context $context */
         $actor = $context->getActor();
 
-        if (! $actor->hasPermission('huseyinfiliz-rewind.moderate')) {
+        if (! $actor->can('huseyinfiliz-rewind.moderate')) {
             $enabled = (bool) $this->settings->get('huseyinfiliz-rewind.enabled', false);
 
-            if (! $enabled || ! $actor->hasPermission('huseyinfiliz-rewind.viewForum')) {
+            if (! $enabled || ! $actor->can('huseyinfiliz-rewind.viewForum')) {
                 $query->whereRaw('0 = 1');
             }
         }
@@ -69,10 +70,8 @@ class RewindSnapshotResource extends AbstractDatabaseResource
                     $year = (int) ($body['year'] ?? $this->settings->get('huseyinfiliz-rewind.active_year', date('Y')));
                     $groupId = isset($body['group']) ? (int) $body['group'] : null;
 
-                    $existingUserIds = RewindSnapshot::where('year', $year)->pluck('user_id');
-
                     $query = User::where('is_email_confirmed', true)
-                        ->whereNotIn('id', $existingUserIds)
+                        ->whereNotIn('id', RewindSnapshot::where('year', $year)->select('user_id'))
                         ->orderBy('id');
 
                     if ($groupId) {
@@ -110,14 +109,14 @@ class RewindSnapshotResource extends AbstractDatabaseResource
                 ->admin()
                 ->action(fn (Context $context) => null)
                 ->response(function () {
-                    $groups = Group::all();
+                    $groups = Group::withCount('users')->get();
 
                     return new JsonResponse([
                         'groups' => $groups->map(fn ($g) => [
                             'id' => $g->id,
                             'nameSingular' => $g->name_singular,
                             'namePlural' => $g->name_plural,
-                            'count' => $g->users()->count(),
+                            'count' => (int) ($g->users_count ?? 0),
                         ])->all(),
                     ]);
                 }),
@@ -155,12 +154,12 @@ class RewindSnapshotResource extends AbstractDatabaseResource
                 ->visible(function (RewindSnapshot $snapshot, Context $context) {
                     $actor = $context->getActor();
 
-                    return $actor->id === $snapshot->user_id || $actor->hasPermission('huseyinfiliz-rewind.moderate');
+                    return $actor->id === $snapshot->user_id || $actor->can('huseyinfiliz-rewind.moderate');
                 }),
             Endpoint\Delete::make()
                 ->authenticated()
                 ->visible(function (RewindSnapshot $snapshot, Context $context) {
-                    return $context->getActor()->hasPermission('huseyinfiliz-rewind.moderate');
+                    return $context->getActor()->can('huseyinfiliz-rewind.moderate');
                 }),
             Endpoint\Endpoint::make('generate')
                 ->route('POST', '/generate')
@@ -199,7 +198,7 @@ class RewindSnapshotResource extends AbstractDatabaseResource
                     }
                     $actor = $context->getActor();
 
-                    return $actor->id === $snapshot->user_id || $actor->hasPermission('huseyinfiliz-rewind.moderate');
+                    return $actor->id === $snapshot->user_id || $actor->can('huseyinfiliz-rewind.moderate');
                 }),
             Schema\DateTime::make('generatedAt'),
             Schema\Boolean::make('isPublic')
@@ -210,11 +209,11 @@ class RewindSnapshotResource extends AbstractDatabaseResource
                 ->get(function (RewindSnapshot $snapshot, Context $context) {
                     $actor = $context->getActor();
 
-                    return $actor->id === $snapshot->user_id || $actor->hasPermission('huseyinfiliz-rewind.moderate');
+                    return $actor->id === $snapshot->user_id || $actor->can('huseyinfiliz-rewind.moderate');
                 }),
             Schema\Boolean::make('canModerate')
                 ->get(function (RewindSnapshot $snapshot, Context $context) {
-                    return $context->getActor()->hasPermission('huseyinfiliz-rewind.moderate');
+                    return $context->getActor()->can('huseyinfiliz-rewind.moderate');
                 }),
             Schema\Boolean::make('isEmpty')
                 ->get(function (RewindSnapshot $snapshot) {
@@ -281,10 +280,11 @@ class RewindSnapshotResource extends AbstractDatabaseResource
         $year = (int) $this->settings->get('huseyinfiliz-rewind.active_year', date('Y'));
         $enabled = (bool) $this->settings->get('huseyinfiliz-rewind.enabled', false);
 
-        if (! $actor->hasPermission('huseyinfiliz-rewind.moderate')) {
-            if (! $enabled || ! $actor->hasPermission('huseyinfiliz-rewind.generate')) {
+        if (! $actor->can('huseyinfiliz-rewind.moderate')) {
+            if (! $enabled) {
                 throw new \Flarum\User\Exception\PermissionDeniedException();
             }
+            $actor->assertCan('huseyinfiliz-rewind.generate');
         }
 
         // Rate limit: 1 generate per minute per user (any year)
@@ -300,36 +300,46 @@ class RewindSnapshotResource extends AbstractDatabaseResource
 
         $existing = RewindSnapshot::where('user_id', $actor->id)->where('year', $year)->first();
 
-        if ($existing && ! $actor->hasPermission('huseyinfiliz-rewind.moderate')) {
+        if ($existing && ! $actor->can('huseyinfiliz-rewind.moderate')) {
             throw new \Flarum\User\Exception\PermissionDeniedException();
         }
 
-        $data = $this->metricRegistry->compute($actor, $year);
-
-        // Inject community averages if enabled
-        if ($this->settings->get('huseyinfiliz-rewind.community_comparison_enabled')) {
-            $communitySnapshot = \HuseyinFiliz\Rewind\Model\CommunitySnapshot::where('year', $year)->first();
-            if ($communitySnapshot && $communitySnapshot->data) {
-                $cd = $communitySnapshot->data;
-                $memberCount = max(1, $cd['new_users']['count'] ?? 1);
-                $totalPosts = $cd['total_posts']['count'] ?? 0;
-                $totalDiscussions = $cd['total_discussions']['count'] ?? 0;
-                $totalWords = $cd['total_words']['total_words'] ?? 0;
-
-                $data['_community_avg'] = [
-                    'posts' => $memberCount > 0 ? round($totalPosts / $memberCount, 1) : 0,
-                    'discussions' => $memberCount > 0 ? round($totalDiscussions / $memberCount, 1) : 0,
-                    'words' => $memberCount > 0 ? round($totalWords / $memberCount) : 0,
-                ];
-            }
+        if ($this->cache && ! $this->cache->add("rewind_generating_{$actor->id}", 1, 30)) {
+            throw new \Flarum\Foundation\ValidationException([
+                'rate_limit' => 'Snapshot generation is already in progress.',
+            ]);
         }
 
-        $snapshot = RewindSnapshot::updateOrCreate(
-            ['user_id' => $actor->id, 'year' => $year],
-            ['data' => $data, 'generated_at' => Carbon::now(), 'is_public' => $existing ? $existing->is_public : true]
-        );
+        try {
+            $data = $this->metricRegistry->compute($actor, $year);
 
-        return $snapshot;
+            // Inject community averages if enabled
+            if ($this->settings->get('huseyinfiliz-rewind.community_comparison_enabled')) {
+                $communitySnapshot = \HuseyinFiliz\Rewind\Model\CommunitySnapshot::where('year', $year)->first();
+                if ($communitySnapshot && $communitySnapshot->data) {
+                    $cd = $communitySnapshot->data;
+                    $memberCount = max(1, $cd['new_users']['count'] ?? 1);
+                    $totalPosts = $cd['total_posts']['count'] ?? 0;
+                    $totalDiscussions = $cd['total_discussions']['count'] ?? 0;
+                    $totalWords = $cd['total_words']['total_words'] ?? 0;
+
+                    $data['_community_avg'] = [
+                        'posts' => $memberCount > 0 ? round($totalPosts / $memberCount, 1) : 0,
+                        'discussions' => $memberCount > 0 ? round($totalDiscussions / $memberCount, 1) : 0,
+                        'words' => $memberCount > 0 ? round($totalWords / $memberCount) : 0,
+                    ];
+                }
+            }
+
+            $snapshot = RewindSnapshot::updateOrCreate(
+                ['user_id' => $actor->id, 'year' => $year],
+                ['data' => $data, 'generated_at' => Carbon::now(), 'is_public' => $existing ? $existing->is_public : true]
+            );
+
+            return $snapshot;
+        } finally {
+            $this->cache?->forget("rewind_generating_{$actor->id}");
+        }
     }
 
     protected function generateForUser(Context $context): RewindSnapshot

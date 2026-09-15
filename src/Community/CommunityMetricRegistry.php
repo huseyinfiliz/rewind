@@ -5,6 +5,7 @@ namespace HuseyinFiliz\Rewind\Community;
 use Flarum\Extension\ExtensionManager;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\QueryException;
+use Psr\Log\LoggerInterface;
 use Throwable;
 
 class CommunityMetricRegistry
@@ -15,6 +16,7 @@ class CommunityMetricRegistry
     public function __construct(
         protected ExtensionManager $extensions,
         protected ConnectionInterface $db,
+        protected ?LoggerInterface $logger = null,
     ) {
     }
 
@@ -40,6 +42,7 @@ class CommunityMetricRegistry
                 if ($this->db->transactionLevel() > 0) {
                     $this->db->rollBack();
                 }
+                $this->logger?->error("Rewind community metric query failed: {$metric->key()}", ['exception' => $e]);
                 // Some optional ecosystem tables may not exist in every install/test environment.
                 // Keep response shape stable for known keys expected by consumers/tests.
                 $fallback = $this->fallbackForKey($metric->key());
@@ -50,6 +53,7 @@ class CommunityMetricRegistry
                 if ($this->db->transactionLevel() > 0) {
                     $this->db->rollBack();
                 }
+                $this->logger?->error("Rewind community metric failed: {$metric->key()}", ['exception' => $e]);
                 $fallback = $this->fallbackForKey($metric->key());
                 if ($fallback !== null) {
                     $result[$metric->key()] = $fallback;
@@ -103,12 +107,14 @@ class CommunityMetricRegistry
             if ($this->db->transactionLevel() > 0) {
                 $this->db->rollBack();
             }
+            $this->logger?->error("Rewind community metric query failed: {$metric->key()}", ['exception' => $e]);
 
             return $this->fallbackForKey($metric->key());
         } catch (Throwable $e) {
             if ($this->db->transactionLevel() > 0) {
                 $this->db->rollBack();
             }
+            $this->logger?->error("Rewind community metric failed: {$metric->key()}", ['exception' => $e]);
 
             return $this->fallbackForKey($metric->key());
         }

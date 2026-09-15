@@ -24,10 +24,6 @@ class TotalBadges implements CommunityMetric
 
     public function calculate(int $year): array
     {
-        if (! $this->db->getSchemaBuilder()->hasTable('fof_badge_user')) {
-            return ['count' => 0];
-        }
-
         $count = $this->db->table('fof_badge_user')
             ->whereYear('earned_at', $year)
             ->count();

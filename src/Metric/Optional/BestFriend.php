@@ -2,6 +2,7 @@
 
 namespace HuseyinFiliz\Rewind\Metric\Optional;
 
+use Flarum\Extension\ExtensionManager;
 use Flarum\User\User;
 use HuseyinFiliz\Rewind\Metric\RewindMetric;
 use Illuminate\Database\ConnectionInterface;
@@ -10,6 +11,7 @@ class BestFriend implements RewindMetric
 {
     public function __construct(
         protected ConnectionInterface $db,
+        protected ExtensionManager $extensions,
     ) {
     }
 
@@ -54,7 +56,7 @@ class BestFriend implements RewindMetric
         $mentionsTo = 0;
         $mentionsFrom = 0;
 
-        if ($this->db->getSchemaBuilder()->hasTable('post_mentions_user')) {
+        if ($this->extensions->isEnabled('flarum-mentions')) {
             $mentionsTo = (int) $this->db->table('post_mentions_user')
                 ->join('posts', 'posts.id', '=', 'post_mentions_user.post_id')
                 ->where('posts.user_id', $user->id)

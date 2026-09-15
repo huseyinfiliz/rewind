@@ -24,10 +24,6 @@ class MostLoved implements CommunityMetric
 
     public function calculate(int $year): array
     {
-        if (! $this->db->getSchemaBuilder()->hasTable('post_likes')) {
-            return ['users' => []];
-        }
-
         $users = $this->db->table('post_likes')
             ->join('posts', 'posts.id', '=', 'post_likes.post_id')
             ->join('users', 'users.id', '=', 'posts.user_id')

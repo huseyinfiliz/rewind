@@ -25,10 +25,6 @@ class TopTag implements RewindMetric
 
     public function calculate(User $user, int $year): array
     {
-        if (! $this->db->getSchemaBuilder()->hasTable('discussion_tag') || ! $this->db->getSchemaBuilder()->hasTable('tags')) {
-            return ['tag_name' => null, 'tag_slug' => null, 'tag_color' => null, 'tag_icon' => null, 'count' => 0];
-        }
-
         $prefix = $this->db->getTablePrefix();
 
         $result = $this->db->table('posts')

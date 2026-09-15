@@ -58,8 +58,8 @@
         <div class="rw-card-value">{{ number_format($metrics['total_words']['total_words'] ?? 0) }}</div>
         <div class="rw-card-label">Words Exchanged</div>
         <div class="rw-card-desc">
-            @if(isset($metrics['total_words']['average_per_post']))
-                Avg. {{ round($metrics['total_words']['average_per_post'], 1) }} words per post.
+            @if(isset($metrics['total_words']['avg_words_per_post']))
+                Avg. {{ round($metrics['total_words']['avg_words_per_post'], 1) }} words per post.
             @else
                 Ideas documented and preserved.
             @endif
@@ -81,8 +81,8 @@
                 <div style="font-size: 0.85rem; color: var(--rw-text-muted);">Busiest Month</div>
                 <div style="font-size: 1.5rem; font-weight: 800; color: #34d399;">
                     {{ $peakMonthName }}
-                    @if(isset($metrics['busiest_month']['post_count']))
-                        <span style="font-size: 0.9rem; font-weight: 500; color: var(--rw-text-muted);">({{ number_format($metrics['busiest_month']['post_count']) }} posts)</span>
+                    @if(isset($metrics['busiest_month']['peak_count']))
+                        <span style="font-size: 0.9rem; font-weight: 500; color: var(--rw-text-muted);">({{ number_format($metrics['busiest_month']['peak_count']) }} posts)</span>
                     @endif
                 </div>
             </div>
@@ -93,8 +93,8 @@
                 <div style="font-size: 0.85rem; color: var(--rw-text-muted);">Most Active Hour of the Day</div>
                 <div style="font-size: 1.2rem; font-weight: 700;">
                     <i class="fas fa-clock" style="color: #fbbf24;"></i> {{ sprintf('%02d:00 - %02d:00', $peakHour, ($peakHour + 1) % 24) }} UTC
-                    @if(isset($metrics['peak_hour']['post_count']))
-                        <span style="font-size: 0.85rem; color: var(--rw-text-muted); font-weight: normal;">({{ number_format($metrics['peak_hour']['post_count']) }} posts)</span>
+                    @if(isset($metrics['peak_hour']['peak_count']))
+                        <span style="font-size: 0.85rem; color: var(--rw-text-muted); font-weight: normal;">({{ number_format($metrics['peak_hour']['peak_count']) }} posts)</span>
                     @endif
                 </div>
             </div>
@@ -113,9 +113,9 @@
                 <span class="rw-pill" style="font-size: 1.1rem; padding: 8px 20px; background: {{ $metrics['top_tag']['color'] ?? 'var(--rw-primary)' }}; color: #fff; font-weight: 700;">
                     # {{ $metrics['top_tag']['name'] }}
                 </span>
-                @if(isset($metrics['top_tag']['count']))
+                @if(isset($metrics['top_tag']['discussion_count']))
                     <span style="font-size: 0.9rem; color: var(--rw-text-muted);">
-                        {{ number_format($metrics['top_tag']['count']) }} posts
+                        {{ number_format($metrics['top_tag']['discussion_count']) }} discussions
                     </span>
                 @endif
             </div>
@@ -137,7 +137,10 @@
 </div>
 
 <!-- Standout Discussions & Members -->
-@if(!empty($metrics['top_discussion']['title']) || !empty($metrics['most_active_user']['username']) || !empty($metrics['most_loved']['username']))
+@php
+    $topLoved = $metrics['most_loved']['users'][0] ?? null;
+@endphp
+@if(!empty($metrics['top_discussion']['title']) || !empty($metrics['most_active_user']['username']) || !empty($topLoved['username']))
     <h3 class="rw-section-title">
         <i class="fas fa-trophy" style="color: var(--rw-amber);"></i> Standout Highlights
     </h3>
@@ -190,26 +193,26 @@
         @endif
 
         <!-- Most Loved Member -->
-        @if(!empty($metrics['most_loved']['username']))
+        @if(!empty($topLoved['username']))
             <div class="rw-card">
                 <div class="rw-card-icon rw-card-icon--pink">
                     <i class="fas fa-heart"></i>
                 </div>
                 <div class="rw-card-label">Most Loved Member</div>
                 <div style="display: flex; align-items: center; gap: 12px; margin-top: 10px;">
-                    @if(!empty($metrics['most_loved']['avatar_url']))
-                        <img src="{{ $metrics['most_loved']['avatar_url'] }}" alt="{{ $metrics['most_loved']['username'] }}" class="rw-avatar" style="width: 48px; height: 48px;">
+                    @if(!empty($topLoved['avatar_url']))
+                        <img src="{{ $topLoved['avatar_url'] }}" alt="{{ $topLoved['username'] }}" class="rw-avatar" style="width: 48px; height: 48px;">
                     @else
                         <div class="rw-avatar" style="width: 48px; height: 48px; background: var(--rw-gradient-hero); display: flex; align-items: center; justify-content: center; font-weight: 700; color: #fff;">
-                            {{ strtoupper(substr($metrics['most_loved']['username'], 0, 1)) }}
+                            {{ strtoupper(substr($topLoved['username'], 0, 1)) }}
                         </div>
                     @endif
                     <div>
                         <div style="font-weight: 700; font-size: 1.1rem; color: #fff;">
-                            {{ $metrics['most_loved']['display_name'] ?? $metrics['most_loved']['username'] }}
+                            {{ $topLoved['display_name'] ?? $topLoved['username'] }}
                         </div>
                         <div style="font-size: 0.85rem; color: #f472b6;">
-                            {{ number_format($metrics['most_loved']['likes_received'] ?? 0) }} likes received ❤️
+                            {{ number_format($topLoved['like_count'] ?? 0) }} likes received ❤️
                         </div>
                     </div>
                 </div>
@@ -219,12 +222,12 @@
 @endif
 
 <!-- Top Contributors List -->
-@if(!empty($metrics['top_contributors']['contributors']))
+@if(!empty($metrics['top_contributors']['users']))
     <h3 class="rw-section-title">
         <i class="fas fa-medal" style="color: var(--rw-primary);"></i> Top Contributors
     </h3>
     <div class="rw-grid rw-grid-3">
-        @foreach(array_slice($metrics['top_contributors']['contributors'], 0, 6) as $index => $c)
+        @foreach(array_slice($metrics['top_contributors']['users'], 0, 6) as $index => $c)
             <div class="rw-card" style="padding: 18px 22px;">
                 <div style="display: flex; align-items: center; gap: 14px;">
                     <div style="font-size: 1.25rem; font-weight: 800; color: {{ $index === 0 ? '#fbbf24' : ($index === 1 ? '#94a3b8' : ($index === 2 ? '#b45309' : 'var(--rw-text-muted)')) }}; width: 24px; text-align: center;">
@@ -239,7 +242,7 @@
                     @endif
                     <div style="flex: 1; min-width: 0;">
                         <div style="font-weight: 700; font-size: 0.95rem; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                            {{ $c['display_name'] ?? $c['username'] ?? 'Member' }}
+                            {{ $c['display_name'] ?? $c['username'] ?? ('User #' . ($c['user_id'] ?? '')) }}
                         </div>
                         <div style="font-size: 0.8rem; color: var(--rw-text-muted);">
                             {{ number_format($c['post_count'] ?? 0) }} posts
@@ -252,39 +255,39 @@
 @endif
 
 <!-- Leaderboards (Best Answers & Badges) -->
-@if(!empty($metrics['best_answers_leaderboard']['leaders']) || !empty($metrics['badge_leaderboard']['leaders']))
+@if(!empty($metrics['best_answers_leaderboard']['users']) || !empty($metrics['badge_leaderboard']['users']))
     <h3 class="rw-section-title">
         <i class="fas fa-award" style="color: var(--rw-emerald);"></i> Community Hall of Fame
     </h3>
     <div class="rw-grid rw-grid-2">
-        @if(!empty($metrics['best_answers_leaderboard']['leaders']))
+        @if(!empty($metrics['best_answers_leaderboard']['users']))
             <div class="rw-card">
                 <div class="rw-card-icon rw-card-icon--emerald">
                     <i class="fas fa-check-double"></i>
                 </div>
                 <h4 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 14px;">Best Answers Leaderboard</h4>
                 <div style="display: flex; flex-direction: column; gap: 10px;">
-                    @foreach(array_slice($metrics['best_answers_leaderboard']['leaders'], 0, 5) as $idx => $l)
+                    @foreach(array_slice($metrics['best_answers_leaderboard']['users'], 0, 5) as $idx => $l)
                         <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--rw-card-border);">
                             <span style="font-weight: 600;">#{{ $idx + 1 }} @ {{ $l['username'] }}</span>
-                            <span class="rw-pill rw-pill--success">{{ $l['count'] }} solutions</span>
+                            <span class="rw-pill rw-pill--success">{{ $l['answer_count'] }} solutions</span>
                         </div>
                     @endforeach
                 </div>
             </div>
         @endif
 
-        @if(!empty($metrics['badge_leaderboard']['leaders']))
+        @if(!empty($metrics['badge_leaderboard']['users']))
             <div class="rw-card">
                 <div class="rw-card-icon rw-card-icon--amber">
                     <i class="fas fa-shield-halved"></i>
                 </div>
                 <h4 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 14px;">Badge Leaderboard</h4>
                 <div style="display: flex; flex-direction: column; gap: 10px;">
-                    @foreach(array_slice($metrics['badge_leaderboard']['leaders'], 0, 5) as $idx => $b)
+                    @foreach(array_slice($metrics['badge_leaderboard']['users'], 0, 5) as $idx => $b)
                         <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--rw-card-border);">
                             <span style="font-weight: 600;">#{{ $idx + 1 }} @ {{ $b['username'] }}</span>
-                            <span class="rw-pill" style="color: #fbbf24;"><i class="fas fa-medal"></i> {{ $b['count'] }} badges</span>
+                            <span class="rw-pill" style="color: #fbbf24;"><i class="fas fa-medal"></i> {{ $b['badge_count'] }} badges</span>
                         </div>
                     @endforeach
                 </div>

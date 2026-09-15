@@ -6,6 +6,7 @@ use Flarum\Extension\ExtensionManager;
 use Flarum\User\User;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\QueryException;
+use Psr\Log\LoggerInterface;
 use Throwable;
 
 class MetricRegistry
@@ -16,6 +17,7 @@ class MetricRegistry
     public function __construct(
         protected ExtensionManager $extensions,
         protected ConnectionInterface $db,
+        protected ?LoggerInterface $logger = null,
     ) {
     }
 
@@ -41,6 +43,7 @@ class MetricRegistry
                 if ($this->db->transactionLevel() > 0) {
                     $this->db->rollBack();
                 }
+                $this->logger?->error("Rewind metric query failed: {$metric->key()}", ['exception' => $e]);
                 // Some optional ecosystem tables may not exist in every install/test environment.
                 // Keep response shape stable for known keys expected by consumers/tests.
                 $fallback = $this->fallbackForKey($metric->key());
@@ -51,6 +54,7 @@ class MetricRegistry
                 if ($this->db->transactionLevel() > 0) {
                     $this->db->rollBack();
                 }
+                $this->logger?->error("Rewind metric failed: {$metric->key()}", ['exception' => $e]);
 
                 $fallback = $this->fallbackForKey($metric->key());
                 if ($fallback !== null) {

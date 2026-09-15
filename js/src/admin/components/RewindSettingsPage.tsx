@@ -578,12 +578,19 @@ export default class RewindSettingsPage extends ExtensionPage {
                   {this.renderVarRow("$metrics['total_posts']['count']", 'Forum-wide total posts')}
                   {this.renderVarRow("$metrics['total_discussions']['count']", 'Forum-wide discussions')}
                   {this.renderVarRow("$metrics['total_words']['total_words']", 'Total words across forum')}
-                  {this.renderVarRow("$metrics['busiest_month']['peak_month']", 'Community busiest month')}
+                  {this.renderVarRow("$metrics['total_words']['avg_words_per_post']", 'Average words per post')}
+                  {this.renderVarRow("$metrics['busiest_month']['peak_month']", 'Community busiest month (1-12)')}
+                  {this.renderVarRow("$metrics['busiest_month']['peak_count']", 'Posts in busiest month')}
                   {this.renderVarRow("$metrics['peak_hour']['peak_hour']", 'Community peak hour (0-23)')}
-                  {this.renderVarRow("$metrics['top_tag']['name']", 'Most used tag')}
+                  {this.renderVarRow("$metrics['peak_hour']['peak_count']", 'Posts in peak hour')}
+                  {this.renderVarRow("$metrics['top_tag']['name']", 'Most used tag name')}
+                  {this.renderVarRow("$metrics['top_tag']['discussion_count']", 'Discussions in top tag')}
                   {this.renderVarRow("$metrics['top_discussion']['title']", 'Most active discussion')}
                   {this.renderVarRow("$metrics['most_active_user']['username']", 'Top member username')}
-                  {this.renderVarRow("$metrics['most_loved']['username']", 'Most loved member')}
+                  {this.renderVarRow("$metrics['top_contributors']['users']", 'Top contributors list (post_count)')}
+                  {this.renderVarRow("$metrics['most_loved']['users']", 'Most loved members list (like_count)')}
+                  {this.renderVarRow("$metrics['best_answers_leaderboard']['users']", 'Best answers list (answer_count)')}
+                  {this.renderVarRow("$metrics['badge_leaderboard']['users']", 'Badge leaderboard list (badge_count)')}
                 </div>
               </div>
             </div>

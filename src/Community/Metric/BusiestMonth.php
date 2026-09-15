@@ -27,6 +27,7 @@ class BusiestMonth implements CommunityMetric
     {
         $dates = $this->db->table('posts')
             ->where('type', 'comment')
+            ->whereYear('created_at', $year)
             ->pluck('created_at');
 
         $monthCounts = array_fill(1, 12, 0);

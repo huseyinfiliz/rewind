@@ -41,10 +41,10 @@ class CommunitySnapshotResource extends AbstractDatabaseResource
         /** @var Context $context */
         $actor = $context->getActor();
 
-        if (! $actor->hasPermission('huseyinfiliz-rewind.moderate')) {
+        if (! $actor->can('huseyinfiliz-rewind.moderate')) {
             $enabled = (bool) $this->settings->get('huseyinfiliz-rewind.enabled', false);
 
-            if (! $enabled || ! $actor->hasPermission('huseyinfiliz-rewind.viewForum')) {
+            if (! $enabled || ! $actor->can('huseyinfiliz-rewind.viewForum')) {
                 $query->whereRaw('0 = 1');
             }
         }

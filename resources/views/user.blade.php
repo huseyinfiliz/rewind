@@ -13,7 +13,7 @@
 
 <section class="rw-hero">
     <div class="rw-hero-tag">
-        <i class="fas fa-sparkles"></i> Personalized Annual Recap
+        <i class="fas fa-wand-magic-sparkles"></i> Personalized Annual Recap
     </div>
     <h1 class="rw-hero-title">{{ $year }} in Review</h1>
     <p class="rw-hero-subtitle">A celebration of your journey, conversations, and impact across the community.</p>

@@ -27,6 +27,7 @@ class PeakHour implements CommunityMetric
     {
         $dates = $this->db->table('posts')
             ->where('type', 'comment')
+            ->whereYear('created_at', $year)
             ->pluck('created_at');
 
         $hourCounts = array_fill(0, 24, 0);

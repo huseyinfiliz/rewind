@@ -85,6 +85,9 @@ class ShowUserRewindBladeControllerTest extends TestCase
         $this->assertStringContainsString('2025 in Review', $body);
         $this->assertStringContainsString('42', $body);
         $this->assertStringContainsString('normal', $body);
+        $this->assertStringNotContainsString('fonts.googleapis.com', $body);
+        $this->assertStringNotContainsString('cdnjs.cloudflare.com', $body);
+        $this->assertStringContainsString('/assets/forum.css', $body);
     }
 
     #[Test]

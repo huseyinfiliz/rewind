@@ -2,6 +2,7 @@
 
 namespace HuseyinFiliz\Rewind\Metric\Core;
 
+use Flarum\Extension\ExtensionManager;
 use Flarum\User\User;
 use HuseyinFiliz\Rewind\Metric\RewindMetric;
 use Illuminate\Database\ConnectionInterface;
@@ -10,6 +11,7 @@ class BestPost implements RewindMetric
 {
     public function __construct(
         protected ConnectionInterface $db,
+        protected ExtensionManager $extensions,
     ) {
     }
 
@@ -25,7 +27,7 @@ class BestPost implements RewindMetric
 
     public function calculate(User $user, int $year): array
     {
-        $hasLikes = $this->db->getSchemaBuilder()->hasTable('post_likes');
+        $hasLikes = $this->extensions->isEnabled('flarum-likes');
 
         if ($hasLikes) {
             return $this->bestByLikes($user, $year);

@@ -44,9 +44,33 @@ class ShowCommunityRewindBladeControllerTest extends TestCase
                         'new_users' => ['count' => 150],
                         'total_posts' => ['count' => 3200],
                         'total_discussions' => ['count' => 450],
-                        'total_words' => ['total_words' => 180000, 'average_per_post' => 56.25],
-                        'busiest_month' => ['peak_month' => 6, 'post_count' => 450],
-                        'peak_hour' => ['peak_hour' => 14, 'post_count' => 320],
+                        'total_words' => ['total_words' => 180000, 'avg_words_per_post' => 56.25],
+                        'busiest_month' => ['peak_month' => 6, 'peak_count' => 450],
+                        'peak_hour' => ['peak_hour' => 14, 'peak_count' => 320],
+                        'top_tag' => ['name' => 'General', 'color' => '#3498db', 'discussion_count' => 88],
+                        'top_discussion' => ['id' => 10, 'title' => 'The Big Thread', 'post_count' => 95],
+                        'most_active_user' => ['id' => 2, 'username' => 'normal', 'post_count' => 210],
+                        'top_contributors' => [
+                            'users' => [
+                                ['user_id' => 2, 'username' => 'normal', 'post_count' => 210],
+                                ['user_id' => 5, 'username' => 'contributor2', 'post_count' => 140],
+                            ],
+                        ],
+                        'most_loved' => [
+                            'users' => [
+                                ['user_id' => 2, 'username' => 'normal', 'like_count' => 125],
+                            ],
+                        ],
+                        'best_answers_leaderboard' => [
+                            'users' => [
+                                ['user_id' => 2, 'username' => 'normal', 'answer_count' => 15],
+                            ],
+                        ],
+                        'badge_leaderboard' => [
+                            'users' => [
+                                ['user_id' => 2, 'username' => 'normal', 'badge_count' => 8],
+                            ],
+                        ],
                     ]),
                     'generated_at' => '2025-12-31 23:59:59',
                 ],
@@ -66,6 +90,19 @@ class ShowCommunityRewindBladeControllerTest extends TestCase
         $this->assertStringContainsString('2025 Forum Rewind', $body);
         $this->assertStringContainsString('3,200', $body);
         $this->assertStringContainsString('150', $body);
+        $this->assertStringContainsString('56.3 words per post', $body);
+        $this->assertStringContainsString('88 discussions', $body);
+        $this->assertStringContainsString('Top Contributors', $body);
+        $this->assertStringContainsString('contributor2', $body);
+        $this->assertStringContainsString('Most Loved Member', $body);
+        $this->assertStringContainsString('125 likes received', $body);
+        $this->assertStringContainsString('Best Answers Leaderboard', $body);
+        $this->assertStringContainsString('15 solutions', $body);
+        $this->assertStringContainsString('Badge Leaderboard', $body);
+        $this->assertStringContainsString('8 badges', $body);
+        $this->assertStringNotContainsString('fonts.googleapis.com', $body);
+        $this->assertStringNotContainsString('cdnjs.cloudflare.com', $body);
+        $this->assertStringContainsString('/assets/forum.css', $body);
     }
 
     #[Test]

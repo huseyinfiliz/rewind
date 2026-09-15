@@ -2,7 +2,6 @@
 
 namespace HuseyinFiliz\Rewind\Community\Metric;
 
-use DateTimeInterface;
 use HuseyinFiliz\Rewind\Community\CommunityMetric;
 use Illuminate\Database\ConnectionInterface;
 
@@ -25,44 +24,27 @@ class TopContributors implements CommunityMetric
 
     public function calculate(int $year): array
     {
+        $prefix = $this->db->getTablePrefix();
+
         $rows = $this->db->table('posts')
-            ->select(['user_id', 'created_at'])
+            ->leftJoin('users', 'users.id', '=', 'posts.user_id')
+            ->where('posts.type', 'comment')
+            ->whereYear('posts.created_at', $year)
+            ->whereNotNull('posts.user_id')
+            ->where('posts.user_id', '>', 0)
+            ->select('posts.user_id', 'users.username')
+            ->selectRaw('COUNT('.$prefix.'posts.id) as post_count')
+            ->groupBy('posts.user_id', 'users.username')
+            ->orderByDesc('post_count')
+            ->limit(5)
             ->get();
 
-        $counts = [];
-        foreach ($rows as $row) {
-            $createdAt = $row->created_at ?? null;
-            if ($createdAt instanceof DateTimeInterface) {
-                $postYear = (int) $createdAt->format('Y');
-            } else {
-                $timestamp = strtotime((string) $createdAt);
-                if ($timestamp === false) {
-                    continue;
-                }
-                $postYear = (int) date('Y', $timestamp);
-            }
-
-            if ($postYear !== $year) {
-                continue;
-            }
-
-            $userId = (int) $row->user_id;
-            if ($userId <= 0) {
-                continue;
-            }
-
-            $counts[$userId] = ($counts[$userId] ?? 0) + 1;
-        }
-
-        arsort($counts);
-        $counts = array_slice($counts, 0, 5, true);
-
         return [
-            'users' => array_map(fn ($userId, $postCount) => [
-                'user_id' => (int) $userId,
-                'username' => null,
-                'post_count' => (int) $postCount,
-            ], array_keys($counts), array_values($counts)),
+            'users' => $rows->map(fn ($r) => [
+                'user_id' => (int) $r->user_id,
+                'username' => $r->username,
+                'post_count' => (int) $r->post_count,
+            ])->toArray(),
         ];
     }
 }

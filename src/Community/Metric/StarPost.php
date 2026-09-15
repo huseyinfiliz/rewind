@@ -24,10 +24,6 @@ class StarPost implements CommunityMetric
 
     public function calculate(int $year): array
     {
-        if (! $this->db->getSchemaBuilder()->hasTable('post_likes')) {
-            return $this->empty();
-        }
-
         $prefix = $this->db->getTablePrefix();
 
         $result = $this->db->table('posts')

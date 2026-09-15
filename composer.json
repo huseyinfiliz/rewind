@@ -12,7 +12,7 @@
         "forum": "https://discuss.flarum.org/d/39044-flarum-rewind-personalized-annual-recaps"
     },
     "require": {
-        "php": "^8.1",
+        "php": "^8.3",
         "flarum/core": "^2.0"
     },
     "suggest": {
