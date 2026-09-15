@@ -18,6 +18,7 @@ use Flarum\Extend;
 use Flarum\Search\Database\DatabaseSearchDriver;
 use HuseyinFiliz\Rewind\Api\Resource\CommunitySnapshotResource;
 use HuseyinFiliz\Rewind\Api\Resource\RewindSnapshotResource;
+use HuseyinFiliz\Rewind\Http\Controller\Admin as AdminController;
 use HuseyinFiliz\Rewind\Http\Controller\ShowCommunityRewindBladeController;
 use HuseyinFiliz\Rewind\Http\Controller\ShowUserRewindBladeController;
 use HuseyinFiliz\Rewind\Model\CommunitySnapshot;
@@ -35,6 +36,13 @@ return [
         ->get('/rewind/view/{id:[0-9]+}/{year:[0-9]+}', 'huseyinfiliz-rewind.blade.user', ShowUserRewindBladeController::class)
         ->get('/rewind/view/{year:[0-9]+}', 'huseyinfiliz-rewind.blade.community', ShowCommunityRewindBladeController::class)
         ->get('/rewind/view', 'huseyinfiliz-rewind.blade.community-default', ShowCommunityRewindBladeController::class),
+
+    (new Extend\Routes('api'))
+        ->get('/rewind-templates', 'huseyinfiliz-rewind.templates.index', AdminController\ListTemplatesController::class)
+        ->post('/rewind-templates', 'huseyinfiliz-rewind.templates.create', AdminController\CreateTemplateController::class)
+        ->get('/rewind-templates/{id:[a-z0-9_]+}', 'huseyinfiliz-rewind.templates.show', AdminController\ShowTemplateController::class)
+        ->put('/rewind-templates/{id:[a-z0-9_]+}', 'huseyinfiliz-rewind.templates.update', AdminController\UpdateTemplateController::class)
+        ->delete('/rewind-templates/{id:[a-z0-9_]+}', 'huseyinfiliz-rewind.templates.delete', AdminController\DeleteTemplateController::class),
 
     (new Extend\View())
         ->namespace('rewind', __DIR__.'/resources/views'),

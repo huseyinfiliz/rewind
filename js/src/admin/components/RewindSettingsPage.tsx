@@ -5,9 +5,20 @@ import Button from 'flarum/common/components/Button';
 import Switch from 'flarum/common/components/Switch';
 import Select from 'flarum/common/components/Select';
 import Form from 'flarum/common/components/Form';
+import LoadingIndicator from 'flarum/common/components/LoadingIndicator';
+import extractText from 'flarum/common/utils/extractText';
 import GenerateModal from './GenerateModal';
 import type { GenerateStep } from './GenerateModal';
+import CreateTemplateModal from './CreateTemplateModal';
+import type { CustomTemplate } from './CreateTemplateModal';
 import type Mithril from 'mithril';
+
+function formatBytes(bytes: number): string {
+  if (!bytes || bytes === 0) return '0 B';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
 
 type SlideSection = {
   key: string;
@@ -70,9 +81,19 @@ export default class RewindSettingsPage extends ExtensionPage {
   private expandedSections: Set<string> = new Set(['core', 'community_overview']);
   private historicalYears: number[] = [];
 
+  private customTemplates: CustomTemplate[] = [];
+  private loadingTemplates: boolean = false;
+  private templatesLoaded: boolean = false;
+  private editingTemplate: CustomTemplate | null = null;
+  private editorContent: string = '';
+  private originalContent: string = '';
+  private savingTemplate: boolean = false;
+  private showVariablesInEditor: boolean = false;
+
   oninit(vnode: Mithril.Vnode<any, any>) {
     super.oninit(vnode);
     this.loadHistoricalYears();
+    this.loadTemplates();
   }
 
   async loadHistoricalYears() {
@@ -88,6 +109,166 @@ export default class RewindSettingsPage extends ExtensionPage {
     } catch {
       // Gracefully fall back to local years
     }
+  }
+
+  async loadTemplates() {
+    this.loadingTemplates = true;
+    m.redraw();
+    try {
+      const response = await app.request<{ templates: CustomTemplate[]; activeYear: number }>({
+        method: 'GET',
+        url: app.forum.attribute('apiUrl') + '/rewind-templates',
+      });
+      if (response && response.templates) {
+        this.customTemplates = response.templates;
+        this.templatesLoaded = true;
+      }
+    } catch (e) {
+      console.error('Failed to load custom templates', e);
+    } finally {
+      this.loadingTemplates = false;
+      m.redraw();
+    }
+  }
+
+  openCreateTemplateModal() {
+    const currentYearStr = String(new Date().getFullYear());
+    const activeYear = parseInt(this.setting('huseyinfiliz-rewind.active_year')() || currentYearStr, 10);
+
+    app.modal.show(CreateTemplateModal, {
+      existingIds: this.customTemplates.map((t) => t.id),
+      activeYear: activeYear,
+      onCreated: (newTemplate: CustomTemplate) => {
+        this.customTemplates.unshift(newTemplate);
+        this.editTemplate(newTemplate);
+      },
+    });
+  }
+
+  async editTemplate(template: CustomTemplate) {
+    this.editingTemplate = template;
+    this.editorContent = template.content ?? '';
+    this.originalContent = template.content ?? '';
+    m.redraw();
+
+    if (template.content === undefined) {
+      try {
+        const response = await app.request<{ template: CustomTemplate }>({
+          method: 'GET',
+          url: `${app.forum.attribute('apiUrl')}/rewind-templates/${template.id}`,
+        });
+        if (response && response.template) {
+          this.editingTemplate = response.template;
+          this.editorContent = response.template.content || '';
+          this.originalContent = response.template.content || '';
+          m.redraw();
+        }
+      } catch (e) {
+        app.alerts.show({ type: 'error' }, 'Failed to load template content.');
+      }
+    }
+  }
+
+  async saveTemplate() {
+    if (!this.editingTemplate || this.savingTemplate) return;
+    this.savingTemplate = true;
+    m.redraw();
+
+    try {
+      const response = await app.request<{ template: CustomTemplate }>({
+        method: 'PUT',
+        url: `${app.forum.attribute('apiUrl')}/rewind-templates/${this.editingTemplate.id}`,
+        body: { content: this.editorContent },
+      });
+
+      if (response && response.template) {
+        this.editingTemplate = response.template;
+        this.originalContent = this.editorContent;
+        const idx = this.customTemplates.findIndex((t) => t.id === response.template.id);
+        if (idx !== -1) {
+          this.customTemplates[idx] = response.template;
+        }
+        app.alerts.show({ type: 'success' }, app.translator.trans('huseyinfiliz-rewind.admin.templates.saved_success'));
+      }
+    } catch (e: any) {
+      app.alerts.show({ type: 'error' }, e?.response?.error || 'Failed to save template.');
+    } finally {
+      this.savingTemplate = false;
+      m.redraw();
+    }
+  }
+
+  deleteTemplate(template: CustomTemplate) {
+    const rawMessage = app.translator.trans('huseyinfiliz-rewind.admin.templates.delete_confirm', {
+      filename: template.filename,
+    });
+    let confirmMessage = extractText(rawMessage);
+    if (!confirmMessage || confirmMessage.includes('{filename}')) {
+      confirmMessage = `Are you sure you want to delete ${template.filename}? Rewind will automatically fall back to the built-in default template.`;
+    }
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    app
+      .request({
+        method: 'DELETE',
+        url: `${app.forum.attribute('apiUrl')}/rewind-templates/${template.id}`,
+      })
+      .then(() => {
+        this.customTemplates = this.customTemplates.filter((t) => t.id !== template.id);
+        if (this.editingTemplate?.id === template.id) {
+          this.editingTemplate = null;
+          this.editorContent = '';
+          this.originalContent = '';
+        }
+        app.alerts.show({ type: 'success' }, app.translator.trans('huseyinfiliz-rewind.admin.templates.deleted_success'));
+        m.redraw();
+      })
+      .catch((e: any) => {
+        app.alerts.show({ type: 'error' }, e?.response?.error || 'Failed to delete template.');
+      });
+  }
+
+  exitEditor() {
+    const isDirty = this.editorContent !== this.originalContent;
+    if (isDirty && !confirm('You have unsaved changes. Are you sure you want to exit?')) {
+      return;
+    }
+    this.editingTemplate = null;
+    this.editorContent = '';
+    this.originalContent = '';
+  }
+
+  handleEditorKeydown(e: KeyboardEvent) {
+    const textarea = e.target as HTMLTextAreaElement;
+
+    // Ctrl+S or Cmd+S shortcut to save
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      this.saveTemplate();
+      return;
+    }
+
+    // Tab key: insert 4 spaces
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const value = textarea.value;
+
+      textarea.value = value.substring(0, start) + '    ' + value.substring(end);
+      textarea.selectionStart = textarea.selectionEnd = start + 4;
+      this.editorContent = textarea.value;
+      m.redraw();
+    }
+  }
+
+  getTemplateIcon(type: string): string {
+    if (type === 'community') return 'fas fa-users';
+    if (type === 'error') return 'fas fa-exclamation-triangle';
+    return 'fas fa-user';
   }
 
   saveSettings(e: SaveSubmitEvent) {
@@ -426,250 +607,378 @@ export default class RewindSettingsPage extends ExtensionPage {
   }
 
   templatesTab(): Mithril.Children {
+    if (this.editingTemplate) {
+      return this.templateEditorView();
+    }
+    return this.templateListView();
+  }
+
+  templateListView(): Mithril.Children {
     const currentYearStr = String(new Date().getFullYear());
     const activeYear = parseInt(this.setting('huseyinfiliz-rewind.active_year')() || currentYearStr, 10);
 
     return (
-      <Form>
-        <div className="RewindSettings-templates">
-          <div className="RewindSettings-infoCard">
-            <div className="RewindSettings-infoCardHeader">
-              <i className="fas fa-magic" />
-              <div>
-                <h4>{app.translator.trans('huseyinfiliz-rewind.admin.settings.templates_title')}</h4>
-                <p>{app.translator.trans('huseyinfiliz-rewind.admin.settings.templates_help')}</p>
-              </div>
+      <div>
+        <div className="Form-group">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap', marginBottom: '8px' }}>
+            <div>
+              <h3>{app.translator.trans('huseyinfiliz-rewind.admin.templates.title')}</h3>
+              <p className="helpText" style={{ margin: 0 }}>
+                {app.translator.trans('huseyinfiliz-rewind.admin.templates.help')}
+              </p>
             </div>
+            <Button type="button" className="Button Button--primary" icon="fas fa-plus" onclick={() => this.openCreateTemplateModal()}>
+              {app.translator.trans('huseyinfiliz-rewind.admin.templates.create_button')}
+            </Button>
           </div>
 
-          <div className="RewindSettings-section">
-            <h3>
-              <i className="fas fa-folder-open" /> {app.translator.trans('huseyinfiliz-rewind.admin.settings.templates_storage_locations')}
-            </h3>
-            <p className="helpText">{app.translator.trans('huseyinfiliz-rewind.admin.settings.templates_storage_help')}</p>
-
-            <div className="RewindSettings-pathsList">
-              <div className="RewindSettings-pathItem" onclick={() => this.copyToClipboard(`storage/rewind/views/user_${activeYear}.blade.php`)}>
-                <span className="RewindSettings-pathBadge">User (Year-Specific)</span>
-                <code>{`storage/rewind/views/user_${activeYear}.blade.php`}</code>
-                <i className="fas fa-copy RewindSettings-copyIcon" title="Click to copy" />
-              </div>
-              <div className="RewindSettings-pathItem" onclick={() => this.copyToClipboard('storage/rewind/views/user.blade.php')}>
-                <span className="RewindSettings-pathBadge">User (Default Fallback)</span>
-                <code>storage/rewind/views/user.blade.php</code>
-                <i className="fas fa-copy RewindSettings-copyIcon" title="Click to copy" />
-              </div>
-              <div className="RewindSettings-pathItem" onclick={() => this.copyToClipboard(`storage/rewind/views/community_${activeYear}.blade.php`)}>
-                <span className="RewindSettings-pathBadge">Community (Year-Specific)</span>
-                <code>{`storage/rewind/views/community_${activeYear}.blade.php`}</code>
-                <i className="fas fa-copy RewindSettings-copyIcon" title="Click to copy" />
-              </div>
-              <div className="RewindSettings-pathItem" onclick={() => this.copyToClipboard('storage/rewind/views/community.blade.php')}>
-                <span className="RewindSettings-pathBadge">Community (Default Fallback)</span>
-                <code>storage/rewind/views/community.blade.php</code>
-                <i className="fas fa-copy RewindSettings-copyIcon" title="Click to copy" />
+          {this.loadingTemplates ? (
+            <div style={{ padding: '24px 0', textAlign: 'center' }}>
+              <LoadingIndicator />
+            </div>
+          ) : this.customTemplates.length === 0 ? (
+            <div className="Alert Alert--info" style={{ marginTop: '12px' }}>
+              <div className="Alert-body">
+                <i className="fas fa-info-circle" style={{ marginRight: '8px' }} />
+                <strong>{app.translator.trans('huseyinfiliz-rewind.admin.templates.no_templates_found')}</strong>
+                <p className="helpText" style={{ margin: '6px 0 0 0' }}>
+                  {app.translator.trans('huseyinfiliz-rewind.admin.templates.empty_help')}
+                </p>
               </div>
             </div>
-          </div>
-
-          <div className="RewindSettings-section">
-            <h3>
-              <i className="fas fa-calendar-alt" /> {app.translator.trans('huseyinfiliz-rewind.admin.settings.year_presentation_modes_title')}
-            </h3>
-            <p className="helpText">{app.translator.trans('huseyinfiliz-rewind.admin.settings.year_presentation_modes_help')}</p>
-
-            <div className="RewindSettings-yearModesTable">
-              {this.getAllDisplayYears().map((year) => {
-                const yearModes = this.getYearModes();
-                const currentMode = yearModes[String(year)] || '';
-
-                return (
-                  <div className="RewindSettings-yearModeRow">
-                    <div className="RewindSettings-yearModeYear">
-                      <strong>{year}</strong>
-                      {parseInt(this.setting('huseyinfiliz-rewind.active_year')() || currentYearStr, 10) === year && (
-                        <span className="RewindSettings-pathBadge">Active</span>
-                      )}
+          ) : (
+            <div className="RewindSettings-templatesTable">
+              {this.customTemplates.map((template) => (
+                <div className="RewindSettings-templateRow" key={template.id}>
+                  <div className="RewindSettings-templateRowLeft">
+                    <i className={this.getTemplateIcon(template.type) + ' RewindSettings-templateRowIcon'} />
+                    <div className="RewindSettings-templateRowTitle">
+                      <span className="RewindSettings-templateFilename">{template.filename}</span>
+                      <span className="RewindSettings-pathBadge">{template.title}</span>
                     </div>
-                    <Select
-                      value={currentMode || 'slideshow'}
-                      options={{
-                        slideshow: app.translator.trans('huseyinfiliz-rewind.admin.settings.render_mode_slideshow') as string,
-                        blade: app.translator.trans('huseyinfiliz-rewind.admin.settings.render_mode_blade') as string,
-                      }}
-                      onchange={(mode: string) => this.setYearMode(year, mode)}
-                    />
+                    <span className="helpText" style={{ margin: 0 }}>
+                      {formatBytes(template.size)} • {new Date(template.modifiedAt).toLocaleDateString()}
+                    </span>
                   </div>
-                );
-              })}
+                  <div className="RewindSettings-templateRowActions">
+                    <Button type="button" className="Button Button--primary" icon="fas fa-edit" onclick={() => this.editTemplate(template)}>
+                      {app.translator.trans('huseyinfiliz-rewind.admin.templates.edit')}
+                    </Button>
+                    <Button type="button" className="Button Button--danger" icon="fas fa-trash" onclick={() => this.deleteTemplate(template)}>
+                      {app.translator.trans('huseyinfiliz-rewind.admin.templates.delete')}
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
+          )}
+        </div>
+
+        <hr />
+
+        <div className="Form-group">
+          <h3>
+            <i className="fas fa-calendar-alt" style={{ marginRight: '8px' }} />
+            {app.translator.trans('huseyinfiliz-rewind.admin.settings.year_presentation_modes_title')}
+          </h3>
+          <p className="helpText">{app.translator.trans('huseyinfiliz-rewind.admin.settings.year_presentation_modes_help')}</p>
+
+          <div className="RewindSettings-yearModesTable">
+            {this.getAllDisplayYears().map((year) => {
+              const yearModes = this.getYearModes();
+              const currentMode = yearModes[String(year)] || '';
+
+              return (
+                <div className="RewindSettings-yearModeRow" key={String(year)}>
+                  <div className="RewindSettings-yearModeYear">
+                    <strong>{year}</strong>
+                    {parseInt(this.setting('huseyinfiliz-rewind.active_year')() || currentYearStr, 10) === year && (
+                      <span className="RewindSettings-pathBadge">Active</span>
+                    )}
+                  </div>
+                  <Select
+                    value={currentMode || 'slideshow'}
+                    options={{
+                      slideshow: app.translator.trans('huseyinfiliz-rewind.admin.settings.render_mode_slideshow') as string,
+                      blade: app.translator.trans('huseyinfiliz-rewind.admin.settings.render_mode_blade') as string,
+                    }}
+                    onchange={(mode: string) => this.setYearMode(year, mode)}
+                  />
+                </div>
+              );
+            })}
           </div>
+          <div style={{ marginTop: '16px' }}>{this.submitButton()}</div>
+        </div>
 
-          <div className="Form-group">{this.submitButton()}</div>
+        <hr />
 
-          <div className="RewindSettings-section">
-            <h3>
-              <i className="fas fa-code" /> {app.translator.trans('huseyinfiliz-rewind.admin.settings.templates_variables_title')}
-            </h3>
-            <p className="helpText">{app.translator.trans('huseyinfiliz-rewind.admin.settings.templates_variables_help')}</p>
+        <div className="Form-group">
+          <h3>
+            <i className="fas fa-code" style={{ marginRight: '8px' }} />
+            {app.translator.trans('huseyinfiliz-rewind.admin.settings.templates_variables_title')}
+          </h3>
+          <p className="helpText">{app.translator.trans('huseyinfiliz-rewind.admin.settings.templates_variables_help')}</p>
 
-            <div className="RewindSettings-varsGrid">
-              {/* User Info & Actor */}
-              <div className="RewindSettings-varCard">
-                <div className="RewindSettings-varCardTitle">
-                  <i className="fas fa-user" /> User & Forum Context
-                </div>
-                <div className="RewindSettings-varList">
-                  {this.renderVarRow('$user->username', 'Username handle')}
-                  {this.renderVarRow('$user->display_name', 'Display name')}
-                  {this.renderVarRow('$user->avatar_url', 'Avatar image URL')}
-                  {this.renderVarRow('$user->id', 'User ID number')}
-                  {this.renderVarRow('$year', 'Active rewind year')}
-                  {this.renderVarRow('$forumTitle', 'Forum title string')}
-                  {this.renderVarRow('$isOwner', 'True if viewer is owner')}
-                  {this.renderVarRow('$canModerate', 'True if viewer is admin/moderator')}
-                </div>
-              </div>
+          {this.renderVariablesCheatsheet()}
+        </div>
 
-              {/* Core User Metrics */}
-              <div className="RewindSettings-varCard">
-                <div className="RewindSettings-varCardTitle">
-                  <i className="fas fa-chart-bar" /> User Activity Metrics
-                </div>
-                <div className="RewindSettings-varList">
-                  {this.renderVarRow("$metrics['post_count']['count']", 'Total posts created')}
-                  {this.renderVarRow("$metrics['discussion_count']['count']", 'Total discussions started')}
-                  {this.renderVarRow("$metrics['active_days']['count']", 'Total active days in year')}
-                  {this.renderVarRow("$metrics['word_count']['count']", 'Total words written')}
-                  {this.renderVarRow("$metrics['most_active_month']['peak_month']", 'Peak active month (1-12)')}
-                  {this.renderVarRow("$metrics['most_active_month']['peak_count']", 'Posts in peak month')}
-                  {this.renderVarRow("$metrics['night_owl']['peak_hour']", 'Most active hour (0-23)')}
-                  {this.renderVarRow("$metrics['night_owl']['is_night_owl']", 'True if active at night')}
-                </div>
-              </div>
+        <hr />
 
-              {/* Social & Content */}
-              <div className="RewindSettings-varCard">
-                <div className="RewindSettings-varCardTitle">
-                  <i className="fas fa-heart" /> Social & Content
-                </div>
-                <div className="RewindSettings-varList">
-                  {this.renderVarRow("$metrics['best_post']['content_html']", 'HTML content of top post')}
-                  {this.renderVarRow("$metrics['best_post']['discussion_title']", 'Title of thread')}
-                  {this.renderVarRow("$metrics['best_post']['count']", 'Likes/reactions count')}
-                  {this.renderVarRow("$metrics['top_tag']['tag_name']", 'Top tag name')}
-                  {this.renderVarRow("$metrics['top_tag']['tag_color']", 'Tag color code')}
-                  {this.renderVarRow("$metrics['best_friend']['display_name']", 'Top collaborator name')}
-                  {this.renderVarRow("$metrics['best_friend']['avatar_url']", 'Collaborator avatar URL')}
-                  {this.renderVarRow("$metrics['likes_received']['count']", 'Total likes received')}
-                  {this.renderVarRow("$metrics['likes_given']['count']", 'Total likes given')}
-                  {this.renderVarRow("$metrics['best_answers']['count']", 'Best answers solved')}
-                  {this.renderVarRow("$metrics['badges_earned']['count']", 'Badges earned')}
-                </div>
-              </div>
+        <div className="Form-group">
+          <h3>
+            <i className="fas fa-terminal" style={{ marginRight: '8px' }} />
+            {app.translator.trans('huseyinfiliz-rewind.admin.settings.templates_examples_title')}
+          </h3>
 
-              {/* Community Metrics */}
-              <div className="RewindSettings-varCard">
-                <div className="RewindSettings-varCardTitle">
-                  <i className="fas fa-users" /> Community Metrics
-                </div>
-                <div className="RewindSettings-varList">
-                  {this.renderVarRow("$metrics['new_users']['count']", 'New members registered')}
-                  {this.renderVarRow("$metrics['total_posts']['count']", 'Forum-wide total posts')}
-                  {this.renderVarRow("$metrics['total_discussions']['count']", 'Forum-wide discussions')}
-                  {this.renderVarRow("$metrics['total_words']['total_words']", 'Total words across forum')}
-                  {this.renderVarRow("$metrics['total_words']['avg_words_per_post']", 'Average words per post')}
-                  {this.renderVarRow("$metrics['busiest_month']['peak_month']", 'Community busiest month (1-12)')}
-                  {this.renderVarRow("$metrics['busiest_month']['peak_count']", 'Posts in busiest month')}
-                  {this.renderVarRow("$metrics['peak_hour']['peak_hour']", 'Community peak hour (0-23)')}
-                  {this.renderVarRow("$metrics['peak_hour']['peak_count']", 'Posts in peak hour')}
-                  {this.renderVarRow("$metrics['top_tag']['name']", 'Most used tag name')}
-                  {this.renderVarRow("$metrics['top_tag']['discussion_count']", 'Discussions in top tag')}
-                  {this.renderVarRow("$metrics['top_discussion']['title']", 'Most active discussion')}
-                  {this.renderVarRow("$metrics['most_active_user']['username']", 'Top member username')}
-                  {this.renderVarRow("$metrics['top_contributors']['users']", 'Top contributors list (post_count)')}
-                  {this.renderVarRow("$metrics['most_loved']['users']", 'Most loved members list (like_count)')}
-                  {this.renderVarRow("$metrics['best_answers_leaderboard']['users']", 'Best answers list (answer_count)')}
-                  {this.renderVarRow("$metrics['badge_leaderboard']['users']", 'Badge leaderboard list (badge_count)')}
-                </div>
-              </div>
+          <div className="RewindSettings-snippetBox">
+            <div className="RewindSettings-snippetHeader">
+              <span>Example 1: Displaying a Stat Card with Blade</span>
+              <button
+                type="button"
+                className="Button Button--link"
+                onclick={() =>
+                  this.copyToClipboard(
+                    `<div class="stat-card">\n    <h3>{{ $user->display_name }}'s {{ $year }} Stats</h3>\n    <p>You wrote <strong>{{ number_format($metrics['post_count']['count'] ?? 0) }}</strong> posts!</p>\n</div>`
+                  )
+                }
+              >
+                <i className="fas fa-copy" /> Copy
+              </button>
             </div>
-          </div>
-
-          <div className="RewindSettings-section">
-            <h3>
-              <i className="fas fa-terminal" /> {app.translator.trans('huseyinfiliz-rewind.admin.settings.templates_examples_title')}
-            </h3>
-
-            <div className="RewindSettings-snippetBox">
-              <div className="RewindSettings-snippetHeader">
-                <span>Example 1: Displaying a Stat Card with Blade</span>
-                <button
-                  className="Button Button--link"
-                  onclick={() =>
-                    this.copyToClipboard(
-                      `<div class="stat-card">\n    <h3>{{ $user->display_name }}'s {{ $year }} Stats</h3>\n    <p>You wrote <strong>{{ number_format($metrics['post_count']['count'] ?? 0) }}</strong> posts!</p>\n</div>`
-                    )
-                  }
-                >
-                  <i className="fas fa-copy" /> Copy
-                </button>
-              </div>
-              <pre className="RewindSettings-codeBlock">
-                {`<div class="stat-card">
+            <pre className="RewindSettings-codeBlock">
+              {`<div class="stat-card">
     <h3>{{ $user->display_name }}'s {{ $year }} Stats</h3>
     <p>You wrote <strong>{{ number_format($metrics['post_count']['count'] ?? 0) }}</strong> posts!</p>
 </div>`}
-              </pre>
-            </div>
+            </pre>
+          </div>
 
-            <div className="RewindSettings-snippetBox">
-              <div className="RewindSettings-snippetHeader">
-                <span>Example 2: Looping through Top Words / Emojis</span>
-                <button
-                  className="Button Button--link"
-                  onclick={() =>
-                    this.copyToClipboard(
-                      `@foreach($metrics['top_words']['words'] ?? [] as $w)\n    <span class="badge">{{ $w['word'] }} ({{ $w['count'] }})</span>\n@endforeach`
-                    )
-                  }
-                >
-                  <i className="fas fa-copy" /> Copy
-                </button>
-              </div>
-              <pre className="RewindSettings-codeBlock">
-                {`@foreach($metrics['top_words']['words'] ?? [] as $w)
+          <div className="RewindSettings-snippetBox">
+            <div className="RewindSettings-snippetHeader">
+              <span>Example 2: Looping through Top Words / Emojis</span>
+              <button
+                type="button"
+                className="Button Button--link"
+                onclick={() =>
+                  this.copyToClipboard(
+                    `@foreach($metrics['top_words']['words'] ?? [] as $w)\n    <span class="badge">{{ $w['word'] }} ({{ $w['count'] }})</span>\n@endforeach`
+                  )
+                }
+              >
+                <i className="fas fa-copy" /> Copy
+              </button>
+            </div>
+            <pre className="RewindSettings-codeBlock">
+              {`@foreach($metrics['top_words']['words'] ?? [] as $w)
     <span class="badge">{{ $w['word'] }} ({{ $w['count'] }})</span>
 @endforeach`}
-              </pre>
-            </div>
+            </pre>
+          </div>
 
-            <div className="RewindSettings-snippetBox">
-              <div className="RewindSettings-snippetHeader">
-                <span>Example 3: Conditional Collaborator Highlight</span>
-                <button
-                  className="Button Button--link"
-                  onclick={() =>
-                    this.copyToClipboard(
-                      `@if(!empty($metrics['best_friend']['username']))\n    <div class="best-friend">\n        <span>Best Friend: {{ $metrics['best_friend']['display_name'] }}</span>\n        <span>{{ $metrics['best_friend']['interaction_count'] }} interactions</span>\n    </div>\n@endif`
-                    )
-                  }
-                >
-                  <i className="fas fa-copy" /> Copy
-                </button>
-              </div>
-              <pre className="RewindSettings-codeBlock">
-                {`@if(!empty($metrics['best_friend']['username']))
+          <div className="RewindSettings-snippetBox">
+            <div className="RewindSettings-snippetHeader">
+              <span>Example 3: Conditional Collaborator Highlight</span>
+              <button
+                type="button"
+                className="Button Button--link"
+                onclick={() =>
+                  this.copyToClipboard(
+                    `@if(!empty($metrics['best_friend']['username']))\n    <div class="best-friend">\n        <span>Best Friend: {{ $metrics['best_friend']['display_name'] }}</span>\n        <span>{{ $metrics['best_friend']['interaction_count'] }} interactions</span>\n    </div>\n@endif`
+                  )
+                }
+              >
+                <i className="fas fa-copy" /> Copy
+              </button>
+            </div>
+            <pre className="RewindSettings-codeBlock">
+              {`@if(!empty($metrics['best_friend']['username']))
     <div class="best-friend">
         <span>Best Friend: {{ $metrics['best_friend']['display_name'] }}</span>
         <span>{{ $metrics['best_friend']['interaction_count'] }} interactions</span>
     </div>
 @endif`}
-              </pre>
-            </div>
+            </pre>
           </div>
         </div>
-      </Form>
+      </div>
+    );
+  }
+
+  templateEditorView(): Mithril.Children {
+    if (!this.editingTemplate) return null;
+
+    const isDirty = this.editorContent !== this.originalContent;
+
+    return (
+      <div>
+        <div className="RewindSettings-editorHeader">
+          <div className="RewindSettings-editorHeaderLeft">
+            <Button type="button" className="Button" icon="fas fa-arrow-left" onclick={() => this.exitEditor()}>
+              {app.translator.trans('huseyinfiliz-rewind.admin.templates.back_to_list')}
+            </Button>
+            <span className="RewindSettings-editorFilename">{this.editingTemplate.filename}</span>
+            <span className="RewindSettings-pathBadge">{this.editingTemplate.title}</span>
+            <span className="helpText" style={{ margin: 0 }}>
+              <code>storage/rewind/views/{this.editingTemplate.filename}</code>
+            </span>
+            {isDirty && (
+              <span
+                className="badge badge--warning"
+                style={{ background: '#f59e0b', color: '#fff', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}
+              >
+                {app.translator.trans('huseyinfiliz-rewind.admin.templates.unsaved_changes')}
+              </span>
+            )}
+          </div>
+          <div className="RewindSettings-editorHeaderRight">
+            <Button type="button" className="Button Button--danger" icon="fas fa-trash" onclick={() => this.deleteTemplate(this.editingTemplate!)}>
+              {app.translator.trans('huseyinfiliz-rewind.admin.templates.delete')}
+            </Button>
+            <Button
+              type="button"
+              className="Button Button--primary"
+              icon="fas fa-save"
+              loading={this.savingTemplate}
+              disabled={this.savingTemplate || !isDirty}
+              onclick={() => this.saveTemplate()}
+            >
+              {app.translator.trans('huseyinfiliz-rewind.admin.templates.save_changes')}
+            </Button>
+          </div>
+        </div>
+
+        <p className="helpText" style={{ margin: '8px 0 12px 0' }}>
+          <i className="fas fa-keyboard" style={{ marginRight: '5px' }} />
+          {app.translator.trans('huseyinfiliz-rewind.admin.templates.editor_tip')}
+        </p>
+
+        <div className="Form-group">
+          <textarea
+            className="FormControl RewindSettings-codeEditor"
+            value={this.editorContent}
+            oninput={(e: InputEvent) => {
+              this.editorContent = (e.target as HTMLTextAreaElement).value;
+            }}
+            onkeydown={(e: KeyboardEvent) => this.handleEditorKeydown(e)}
+            spellcheck={false}
+            autocomplete="off"
+            autocapitalize="off"
+            rows={28}
+          />
+        </div>
+
+        <div
+          className={'RewindSettings-accordion' + (this.showVariablesInEditor ? ' RewindSettings-accordion--open' : '')}
+          style={{ marginTop: '20px' }}
+        >
+          <button
+            className="RewindSettings-accordionHeader"
+            type="button"
+            onclick={() => {
+              this.showVariablesInEditor = !this.showVariablesInEditor;
+            }}
+          >
+            <i className="fas fa-code RewindSettings-accordionIcon" />
+            <span className="RewindSettings-accordionTitle">{app.translator.trans('huseyinfiliz-rewind.admin.templates.view_variables')}</span>
+            <i className={'fas ' + (this.showVariablesInEditor ? 'fa-chevron-up' : 'fa-chevron-down') + ' RewindSettings-accordionChevron'} />
+          </button>
+          {this.showVariablesInEditor && (
+            <div className="RewindSettings-accordionBody">
+              <p className="helpText" style={{ marginBottom: '12px' }}>
+                {app.translator.trans('huseyinfiliz-rewind.admin.settings.templates_variables_help')}
+              </p>
+              {this.renderVariablesCheatsheet()}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  renderVariablesCheatsheet(): Mithril.Children {
+    return (
+      <div className="RewindSettings-varsGrid">
+        {/* User Info & Actor */}
+        <div className="RewindSettings-varCard">
+          <div className="RewindSettings-varCardTitle">
+            <i className="fas fa-user" /> User & Forum Context
+          </div>
+          <div className="RewindSettings-varList">
+            {this.renderVarRow('$user->username', 'Username handle')}
+            {this.renderVarRow('$user->display_name', 'Display name')}
+            {this.renderVarRow('$user->avatar_url', 'Avatar image URL')}
+            {this.renderVarRow('$user->id', 'User ID number')}
+            {this.renderVarRow('$year', 'Active rewind year')}
+            {this.renderVarRow('$forumTitle', 'Forum title string')}
+            {this.renderVarRow('$isOwner', 'True if viewer is owner')}
+            {this.renderVarRow('$canModerate', 'True if viewer is admin/moderator')}
+          </div>
+        </div>
+
+        {/* Core User Metrics */}
+        <div className="RewindSettings-varCard">
+          <div className="RewindSettings-varCardTitle">
+            <i className="fas fa-chart-bar" /> User Activity Metrics
+          </div>
+          <div className="RewindSettings-varList">
+            {this.renderVarRow("$metrics['post_count']['count']", 'Total posts created')}
+            {this.renderVarRow("$metrics['discussion_count']['count']", 'Total discussions started')}
+            {this.renderVarRow("$metrics['active_days']['count']", 'Total active days in year')}
+            {this.renderVarRow("$metrics['word_count']['count']", 'Total words written')}
+            {this.renderVarRow("$metrics['most_active_month']['peak_month']", 'Peak active month (1-12)')}
+            {this.renderVarRow("$metrics['most_active_month']['peak_count']", 'Posts in peak month')}
+            {this.renderVarRow("$metrics['night_owl']['peak_hour']", 'Most active hour (0-23)')}
+            {this.renderVarRow("$metrics['night_owl']['is_night_owl']", 'True if active at night')}
+          </div>
+        </div>
+
+        {/* Social & Content */}
+        <div className="RewindSettings-varCard">
+          <div className="RewindSettings-varCardTitle">
+            <i className="fas fa-heart" /> Social & Content
+          </div>
+          <div className="RewindSettings-varList">
+            {this.renderVarRow("$metrics['best_post']['content_html']", 'HTML content of top post')}
+            {this.renderVarRow("$metrics['best_post']['discussion_title']", 'Title of thread')}
+            {this.renderVarRow("$metrics['best_post']['count']", 'Likes/reactions count')}
+            {this.renderVarRow("$metrics['top_tag']['tag_name']", 'Top tag name')}
+            {this.renderVarRow("$metrics['top_tag']['tag_color']", 'Tag color code')}
+            {this.renderVarRow("$metrics['best_friend']['display_name']", 'Top collaborator name')}
+            {this.renderVarRow("$metrics['best_friend']['avatar_url']", 'Collaborator avatar URL')}
+            {this.renderVarRow("$metrics['likes_received']['count']", 'Total likes received')}
+            {this.renderVarRow("$metrics['likes_given']['count']", 'Total likes given')}
+            {this.renderVarRow("$metrics['best_answers']['count']", 'Best answers solved')}
+            {this.renderVarRow("$metrics['badges_earned']['count']", 'Badges earned')}
+          </div>
+        </div>
+
+        {/* Community Metrics */}
+        <div className="RewindSettings-varCard">
+          <div className="RewindSettings-varCardTitle">
+            <i className="fas fa-users" /> Community Metrics
+          </div>
+          <div className="RewindSettings-varList">
+            {this.renderVarRow("$metrics['new_users']['count']", 'New members registered')}
+            {this.renderVarRow("$metrics['total_posts']['count']", 'Forum-wide total posts')}
+            {this.renderVarRow("$metrics['total_discussions']['count']", 'Forum-wide discussions')}
+            {this.renderVarRow("$metrics['total_words']['total_words']", 'Total words across forum')}
+            {this.renderVarRow("$metrics['total_words']['avg_words_per_post']", 'Average words per post')}
+            {this.renderVarRow("$metrics['busiest_month']['peak_month']", 'Community busiest month (1-12)')}
+            {this.renderVarRow("$metrics['busiest_month']['peak_count']", 'Posts in busiest month')}
+            {this.renderVarRow("$metrics['peak_hour']['peak_hour']", 'Community peak hour (0-23)')}
+            {this.renderVarRow("$metrics['peak_hour']['peak_count']", 'Posts in peak hour')}
+            {this.renderVarRow("$metrics['top_tag']['name']", 'Most used tag name')}
+            {this.renderVarRow("$metrics['top_tag']['discussion_count']", 'Discussions in top tag')}
+            {this.renderVarRow("$metrics['top_discussion']['title']", 'Most active discussion')}
+            {this.renderVarRow("$metrics['most_active_user']['username']", 'Top member username')}
+            {this.renderVarRow("$metrics['top_contributors']['users']", 'Top contributors list (post_count)')}
+            {this.renderVarRow("$metrics['most_loved']['users']", 'Most loved members list (like_count)')}
+            {this.renderVarRow("$metrics['best_answers_leaderboard']['users']", 'Best answers list (answer_count)')}
+            {this.renderVarRow("$metrics['badge_leaderboard']['users']", 'Badge leaderboard list (badge_count)')}
+          </div>
+        </div>
+      </div>
     );
   }
 

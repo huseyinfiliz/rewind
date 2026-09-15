@@ -7,6 +7,7 @@ use HuseyinFiliz\Rewind\Community\CommunityMetricRegistry;
 use HuseyinFiliz\Rewind\Community\Metric as CommunityMetrics;
 use HuseyinFiliz\Rewind\Metric\Core;
 use HuseyinFiliz\Rewind\Metric\MetricRegistry;
+use HuseyinFiliz\Rewind\Template\RewindTemplateManager;
 use HuseyinFiliz\Rewind\View\RewindViewResolver;
 
 class RewindServiceProvider extends AbstractServiceProvider
@@ -14,6 +15,7 @@ class RewindServiceProvider extends AbstractServiceProvider
     public function register(): void
     {
         $this->container->singleton(RewindViewResolver::class);
+        $this->container->singleton(RewindTemplateManager::class);
 
         $this->container->singleton(MetricRegistry::class);
 

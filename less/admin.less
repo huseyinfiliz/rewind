@@ -563,4 +563,113 @@
   color: var(--text-color);
 }
 
+// Template Management & Editor
+.RewindSettings-templatesTable {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--body-bg);
+  border: 1px solid var(--control-bg);
+  border-radius: @rw-admin-radius;
+  padding: 12px;
+}
+
+.RewindSettings-templateRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 14px;
+  background: var(--control-bg);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 6px;
+  transition: all @rw-admin-transition ease;
+
+  &:hover {
+    border-color: rgba(0, 0, 0, 0.12);
+  }
+}
+
+.RewindSettings-templateRowLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.RewindSettings-templateRowIcon {
+  font-size: 14px;
+  color: var(--primary-color);
+  width: 16px;
+  text-align: center;
+}
+
+.RewindSettings-templateRowTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.RewindSettings-templateFilename {
+  font-size: 14px;
+  font-weight: 600;
+  font-family: monospace;
+  color: var(--text-color);
+}
+
+.RewindSettings-templateRowActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+// Template Editor View
+.RewindSettings-editorHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--control-bg);
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.RewindSettings-editorHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.RewindSettings-editorFilename {
+  font-size: 15px;
+  font-weight: 700;
+  font-family: monospace;
+  color: var(--text-color);
+}
+
+.RewindSettings-editorHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.RewindSettings-codeEditor {
+  font-family: "Fira Code", Consolas, Monaco, "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  tab-size: 4;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+  resize: vertical;
+  min-height: 480px;
+  box-sizing: border-box;
+  width: 100%;
+}
+
 
