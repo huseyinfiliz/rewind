@@ -24,6 +24,7 @@ class CommunitySnapshotGenerator
     public function begin(int $year): void
     {
         $lock = $this->locks->acquire('community_'.$year, 300);
+
         try {
             $this->cache->forget($this->draftKey($year));
         } finally {
@@ -40,6 +41,7 @@ class CommunitySnapshotGenerator
         }
 
         $lock = $this->locks->acquire('community_'.$year, 300);
+
         try {
             if (! $regenerate && CommunitySnapshot::where('year', $year)->exists()) {
                 return ['ready' => true, 'completed' => count($keys), 'total' => count($keys), 'stepComplete' => true];

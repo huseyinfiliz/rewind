@@ -23,6 +23,7 @@ class UserSnapshotGenerator
     public function generate(User $user, int $year, bool $regenerate = true, bool $rateLimit = false): RewindSnapshot
     {
         $lock = $this->locks->acquire('user_'.$user->id);
+
         try {
             $existing = RewindSnapshot::where('user_id', $user->id)->where('year', $year)->first();
             if ($rateLimit) {
