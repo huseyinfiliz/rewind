@@ -2,8 +2,8 @@
 
 namespace HuseyinFiliz\Rewind\Search\Filter;
 
-use Flarum\Search\Filter\FilterInterface;
 use Flarum\Search\Database\DatabaseSearchState;
+use Flarum\Search\Filter\FilterInterface;
 use Flarum\Search\SearchState;
 
 /**

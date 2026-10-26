@@ -71,6 +71,7 @@ class CommunitySnapshotResource extends AbstractDatabaseResource
                     if ($year !== $this->years->active() || $year > $this->years->previous() || $year < 2000) {
                         throw new \Flarum\Foundation\ValidationException(['year' => 'Automatic generation is limited to the active, completed year.']);
                     }
+
                     try {
                         return $this->generator->step($year);
                     } catch (\Flarum\Foundation\ValidationException $e) {
