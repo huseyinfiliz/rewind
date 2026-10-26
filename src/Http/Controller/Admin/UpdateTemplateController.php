@@ -12,6 +12,7 @@
 namespace HuseyinFiliz\Rewind\Http\Controller\Admin;
 
 use Flarum\Http\RequestUtil;
+use HuseyinFiliz\Rewind\Template\Exception\InvalidTemplateException;
 use HuseyinFiliz\Rewind\Template\Exception\TemplateNotFoundException;
 use HuseyinFiliz\Rewind\Template\RewindTemplateManager;
 use Laminas\Diactoros\Response\JsonResponse;
@@ -60,6 +61,10 @@ class UpdateTemplateController implements RequestHandlerInterface
             return new JsonResponse([
                 'error' => $e->getMessage(),
             ], 404);
+        } catch (InvalidTemplateException $e) {
+            return new JsonResponse([
+                'error' => $e->getMessage(),
+            ], 400);
         } catch (\Throwable $e) {
             return new JsonResponse([
                 'error' => 'Failed to update template: '.$e->getMessage(),

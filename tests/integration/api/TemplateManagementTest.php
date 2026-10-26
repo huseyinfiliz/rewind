@@ -15,6 +15,7 @@ use Flarum\Foundation\Paths;
 use Flarum\Testing\integration\RetrievesAuthorizedUsers;
 use Flarum\Testing\integration\TestCase;
 use HuseyinFiliz\Rewind\View\RewindViewResolver;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 
 class TemplateManagementTest extends TestCase
@@ -373,5 +374,45 @@ class TemplateManagementTest extends TestCase
             ])
         );
         $this->assertEquals(400, $response->getStatusCode());
+    }
+
+    public static function prohibitedPhpTags(): array
+    {
+        return [
+            'php tag' => ['<?php /* rejected template */ ?>'],
+            'short echo tag' => ['<?= "rejected template" ?>'],
+            'case insensitive tag' => ['<?PHP /* rejected template */ ?>'],
+        ];
+    }
+
+    #[Test]
+    #[DataProvider('prohibitedPhpTags')]
+    public function invalid_template_update_returns_client_error_and_preserves_saved_content(string $content): void
+    {
+        $path = $this->trackFile('user_2030.blade.php');
+        $original = '<h1>Previously saved {{ $year }} recap</h1>';
+        file_put_contents($path, $original);
+
+        $response = $this->send(
+            $this->request('PUT', '/api/rewind-templates/user_2030', [
+                'authenticatedAs' => 1,
+                'json' => ['content' => $content],
+            ])
+        );
+
+        $this->assertEquals(400, $response->getStatusCode());
+        $body = json_decode((string) $response->getBody(), true);
+        $this->assertSame('Raw PHP tags are not permitted in template files.', $body['error']);
+        $this->assertSame($original, file_get_contents($path));
+
+        $valid = '<h1>Corrected {{ $year }} recap</h1>';
+        $response = $this->send(
+            $this->request('PUT', '/api/rewind-templates/user_2030', [
+                'authenticatedAs' => 1,
+                'json' => ['content' => $valid],
+            ])
+        );
+        $this->assertEquals(200, $response->getStatusCode());
+        $this->assertSame($valid, file_get_contents($path));
     }
 }
