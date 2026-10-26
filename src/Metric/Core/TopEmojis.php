@@ -2,12 +2,16 @@
 
 namespace HuseyinFiliz\Rewind\Metric\Core;
 
-use Flarum\Post\Post;
 use Flarum\User\User;
+use HuseyinFiliz\Rewind\ContentVisibility;
 use HuseyinFiliz\Rewind\Metric\RewindMetric;
 
 class TopEmojis implements RewindMetric
 {
+    public function __construct(protected ContentVisibility $visibility)
+    {
+    }
+
     public function key(): string
     {
         return 'top_emojis';
@@ -59,11 +63,12 @@ class TopEmojis implements RewindMetric
         // Complete emoji: flag | keycap | base with optional modifiers and ZWJ chains
         $emojiPattern = '/(?:'.$flag.'|'.$keycap.'|'.$base.$mod.'*(?:\x{200D}'.$base.$mod.'*)*)/u';
 
-        Post::where('user_id', $user->id)
+        $this->visibility->posts()->where('user_id', $user->id)
             ->where('type', 'comment')
             ->whereNull('hidden_at')
             ->where('is_private', false)
-            ->whereYear('created_at', $year)
+            ->where('created_at', '>=', "$year-01-01 00:00:00")
+            ->where('created_at', '<', ($year + 1).'-01-01 00:00:00')
             ->select('id', 'content')
             ->chunkById(500, function ($posts) use (&$emojiCounts, $emojiPattern) {
                 foreach ($posts as $post) {

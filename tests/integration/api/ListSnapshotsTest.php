@@ -19,6 +19,7 @@ class ListSnapshotsTest extends TestCase
 
         $this->setting('huseyinfiliz-rewind.enabled', true);
         $this->setting('huseyinfiliz-rewind.active_year', 2025);
+        $this->setting('huseyinfiliz-rewind.automatic_year', false);
 
         $this->prepareDatabase([
             'users' => [

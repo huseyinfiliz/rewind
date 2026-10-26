@@ -17,6 +17,7 @@ use Flarum\Http\UrlGenerator;
 use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
 use HuseyinFiliz\Rewind\Model\RewindSnapshot;
+use HuseyinFiliz\Rewind\SnapshotVisibility;
 use HuseyinFiliz\Rewind\View\RewindViewResolver;
 use Illuminate\Contracts\Container\Container;
 use Laminas\Diactoros\Response\HtmlResponse;
@@ -105,8 +106,9 @@ class ShowUserRewindBladeController implements RequestHandlerInterface
             );
         }
 
-        /** @var RewindSnapshot|null $snapshot */
-        $snapshot = RewindSnapshot::where('user_id', $id)->where('year', $year)->first();
+        $query = RewindSnapshot::where('user_id', $id)->where('year', $year);
+        SnapshotVisibility::scope($query, $actor);
+        $snapshot = $query->first();
         if (! $snapshot) {
             return $this->renderError(
                 'Rewind Not Found',
@@ -121,19 +123,6 @@ class ShowUserRewindBladeController implements RequestHandlerInterface
         }
 
         $isOwner = $actor->id === $user->id;
-        if (! $snapshot->is_public && ! $isOwner && ! $canModerate) {
-            return $this->renderError(
-                'Private Rewind',
-                "@{$user->username}'s {$year} Rewind is set to private.",
-                403,
-                $forumTitle,
-                $baseUrl,
-                $actor,
-                $user,
-                $year
-            );
-        }
-
         $metrics = is_array($snapshot->data) ? $snapshot->data : [];
         $hiddenSlides = json_decode((string) $this->settings->get('huseyinfiliz-rewind.hidden_user_slides', '[]'), true) ?: [];
         $viewName = $this->resolver->resolveUserView($year);

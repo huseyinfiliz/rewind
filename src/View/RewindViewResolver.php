@@ -51,7 +51,7 @@ class RewindViewResolver
             return "rewind-custom::user_{$year}";
         }
 
-        if ($this->viewFactory->exists('rewind-custom::user')) {
+        if ($this->customViewExists('rewind-custom::user')) {
             return 'rewind-custom::user';
         }
 
@@ -70,7 +70,7 @@ class RewindViewResolver
             return "rewind-custom::community_{$year}";
         }
 
-        if ($this->viewFactory->exists('rewind-custom::community')) {
+        if ($this->customViewExists('rewind-custom::community')) {
             return 'rewind-custom::community';
         }
 
@@ -85,7 +85,7 @@ class RewindViewResolver
     {
         $this->registerCustomNamespace();
 
-        if ($this->viewFactory->exists('rewind-custom::error')) {
+        if ($this->customViewExists('rewind-custom::error')) {
             return 'rewind-custom::error';
         }
 
@@ -95,6 +95,12 @@ class RewindViewResolver
     public function render(string $view, array $data = []): string
     {
         return $this->viewFactory->make($view, $data)->render();
+    }
+
+    protected function customViewExists(string $view): bool
+    {
+        // These files are created at runtime by administrators, not bundled views.
+        return $this->viewFactory->exists($view);
     }
 
     public function getCustomStoragePath(): string

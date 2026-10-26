@@ -19,6 +19,7 @@ class AdminEndpointsTest extends TestCase
 
         $this->setting('huseyinfiliz-rewind.enabled', true);
         $this->setting('huseyinfiliz-rewind.active_year', 2025);
+        $this->setting('huseyinfiliz-rewind.automatic_year', false);
 
         $this->prepareDatabase([
             'users' => [
@@ -60,6 +61,24 @@ class AdminEndpointsTest extends TestCase
 
         $body = json_decode($response->getBody()->getContents(), true);
         $this->assertEquals('rw-snaps', $body['data']['type']);
+        $this->assertEquals(0, $this->database()->table('rw_snaps')->where('user_id', 4)->value('is_public'));
+    }
+
+    #[Test]
+    public function admin_generation_respects_public_default_and_preserves_private_choice()
+    {
+        $this->setting('huseyinfiliz-rewind.default_public', true);
+        $request = fn () => $this->request('POST', '/api/rw-snaps/generate-for-user', [
+            'authenticatedAs' => 1,
+            'json' => ['userId' => 4, 'year' => 2025],
+        ]);
+
+        $this->assertEquals(200, $this->send($request())->getStatusCode());
+        $this->assertEquals(1, $this->database()->table('rw_snaps')->where('user_id', 4)->value('is_public'));
+
+        $this->database()->table('rw_snaps')->where('user_id', 4)->update(['is_public' => false]);
+        $this->assertEquals(200, $this->send($request())->getStatusCode());
+        $this->assertEquals(0, $this->database()->table('rw_snaps')->where('user_id', 4)->value('is_public'));
     }
 
     #[Test]
@@ -108,6 +127,16 @@ class AdminEndpointsTest extends TestCase
         $this->assertContains(3, $missingIds);
         $this->assertContains(4, $missingIds);
         $this->assertNotContains(2, $missingIds);
+    }
+
+    #[Test]
+    public function admin_can_select_existing_snapshots_for_safe_refresh()
+    {
+        $response = $this->send($this->request('POST', '/api/rw-snaps/missing-users', [
+            'authenticatedAs' => 1, 'json' => ['year' => 2025, 'regenerate' => true],
+        ]));
+        $this->assertEquals(200, $response->getStatusCode());
+        $this->assertSame([2], array_column(json_decode((string) $response->getBody(), true)['users'], 'id'));
     }
 
     #[Test]

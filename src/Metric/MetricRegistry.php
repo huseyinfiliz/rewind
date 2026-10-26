@@ -4,7 +4,6 @@ namespace HuseyinFiliz\Rewind\Metric;
 
 use Flarum\Extension\ExtensionManager;
 use Flarum\User\User;
-use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\QueryException;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -16,7 +15,6 @@ class MetricRegistry
 
     public function __construct(
         protected ExtensionManager $extensions,
-        protected ConnectionInterface $db,
         protected ?LoggerInterface $logger = null,
     ) {
     }

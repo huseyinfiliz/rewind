@@ -3,6 +3,7 @@ import Modal, { type IInternalModalAttrs } from 'flarum/common/components/Modal'
 import Button from 'flarum/common/components/Button';
 import LoadingIndicator from 'flarum/common/components/LoadingIndicator';
 import type Mithril from 'mithril';
+import getActiveYear from '../utils/activeYear';
 
 export type GenerateStep = {
   key: string;
@@ -127,7 +128,7 @@ export default class GenerateModal extends Modal<GenerateModalAttrs> {
     for (const field of attrs.configFields) {
       if (field.type === 'number' && field.key === 'year') {
         const val = this.config[field.key];
-        const maxYear = parseInt(app.data.settings['huseyinfiliz-rewind.active_year'] as string, 10) || new Date().getFullYear();
+        const maxYear = getActiveYear();
         if (!val || !Number.isInteger(val) || val < 2000 || val > maxYear) {
           return app.translator.trans('huseyinfiliz-rewind.admin.generate_modal.invalid_year') as string;
         }

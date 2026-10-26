@@ -5,6 +5,7 @@ namespace HuseyinFiliz\Rewind\Metric\Core;
 use Flarum\Extension\ExtensionManager;
 use Flarum\Formatter\Formatter;
 use Flarum\User\User;
+use HuseyinFiliz\Rewind\ContentVisibility;
 use HuseyinFiliz\Rewind\Metric\RewindMetric;
 use Illuminate\Database\ConnectionInterface;
 
@@ -13,6 +14,7 @@ class BestPost implements RewindMetric
     public function __construct(
         protected ConnectionInterface $db,
         protected ExtensionManager $extensions,
+        protected ContentVisibility $visibility,
         protected ?Formatter $formatter = null,
     ) {
     }
@@ -43,6 +45,7 @@ class BestPost implements RewindMetric
         $prefix = $this->db->getTablePrefix();
 
         $result = $this->db->table('posts')
+            ->whereIn('posts.id', $this->visibility->posts()->select('posts.id'))
             ->leftJoin('post_likes', 'posts.id', '=', 'post_likes.post_id')
             ->join('discussions', 'posts.discussion_id', '=', 'discussions.id')
             ->where('posts.user_id', $user->id)
@@ -51,7 +54,8 @@ class BestPost implements RewindMetric
             ->where('posts.is_private', false)
             ->whereNull('discussions.hidden_at')
             ->where('discussions.is_private', false)
-            ->whereYear('posts.created_at', $year)
+            ->where('posts.created_at', '>=', "$year-01-01 00:00:00")
+            ->where('posts.created_at', '<', ($year + 1).'-01-01 00:00:00')
             ->select('posts.id', 'posts.discussion_id', 'posts.content', 'discussions.title as discussion_title')
             ->selectRaw('COUNT('.$prefix.'post_likes.user_id) as like_count')
             ->groupBy('posts.id', 'posts.discussion_id', 'posts.content', 'discussions.title')
@@ -76,6 +80,7 @@ class BestPost implements RewindMetric
     protected function bestByReplies(User $user, int $year): array
     {
         $result = $this->db->table('posts')
+            ->whereIn('posts.id', $this->visibility->posts()->select('posts.id'))
             ->join('discussions', 'posts.discussion_id', '=', 'discussions.id')
             ->where('posts.user_id', $user->id)
             ->where('posts.type', 'comment')
@@ -83,7 +88,8 @@ class BestPost implements RewindMetric
             ->where('posts.is_private', false)
             ->whereNull('discussions.hidden_at')
             ->where('discussions.is_private', false)
-            ->whereYear('posts.created_at', $year)
+            ->where('posts.created_at', '>=', "$year-01-01 00:00:00")
+            ->where('posts.created_at', '<', ($year + 1).'-01-01 00:00:00')
             ->select('posts.id', 'posts.discussion_id', 'posts.content', 'discussions.title as discussion_title', 'discussions.comment_count')
             ->orderByDesc('discussions.comment_count')
             ->first();

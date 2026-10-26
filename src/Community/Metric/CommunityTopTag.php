@@ -3,12 +3,14 @@
 namespace HuseyinFiliz\Rewind\Community\Metric;
 
 use HuseyinFiliz\Rewind\Community\CommunityMetric;
+use HuseyinFiliz\Rewind\ContentVisibility;
 use Illuminate\Database\ConnectionInterface;
 
 class CommunityTopTag implements CommunityMetric
 {
     public function __construct(
         protected ConnectionInterface $db,
+        protected ContentVisibility $visibility,
     ) {
     }
 
@@ -27,12 +29,13 @@ class CommunityTopTag implements CommunityMetric
         $prefix = $this->db->getTablePrefix();
 
         $result = $this->db->table('discussion_tag')
+            ->whereIn('discussion_tag.discussion_id', $this->visibility->discussions()->select('discussions.id'))
             ->join('discussions', 'discussions.id', '=', 'discussion_tag.discussion_id')
             ->join('tags', 'tags.id', '=', 'discussion_tag.tag_id')
             ->whereNull('discussions.hidden_at')
             ->where('discussions.is_private', false)
-            ->where('tags.is_restricted', false)
-            ->whereYear('discussions.created_at', $year)
+            ->where('discussions.created_at', '>=', "$year-01-01 00:00:00")
+            ->where('discussions.created_at', '<', ($year + 1).'-01-01 00:00:00')
             ->select('tags.id', 'tags.name', 'tags.slug', 'tags.color')
             ->selectRaw('COUNT(DISTINCT '.$prefix.'discussions.id) as discussion_count')
             ->groupBy('tags.id', 'tags.name', 'tags.slug', 'tags.color')

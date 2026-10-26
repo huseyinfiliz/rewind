@@ -280,6 +280,8 @@ class RewindTemplateManager
      * @return array{id: string, type: string, year: ?int, filename: string, title: string, size: int, modifiedAt: string, isCustom: bool, content?: string}
      *
      * @throws TemplateNotFoundException
+     * @throws InvalidTemplateException
+     * @throws \RuntimeException
      */
     public function updateTemplate(string $id, string $content): array
     {
@@ -344,7 +346,7 @@ class RewindTemplateManager
      */
     public function clearCompiledViewCache(): void
     {
-        if ($this->viewFactory && method_exists($this->viewFactory, 'flushFinderCache')) {
+        if ($this->viewFactory instanceof \Illuminate\View\Factory) {
             $this->viewFactory->flushFinderCache();
         }
     }

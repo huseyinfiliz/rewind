@@ -4,12 +4,14 @@ namespace HuseyinFiliz\Rewind\Community\Metric;
 
 use Flarum\Formatter\Formatter;
 use HuseyinFiliz\Rewind\Community\CommunityMetric;
+use HuseyinFiliz\Rewind\ContentVisibility;
 use Illuminate\Database\ConnectionInterface;
 
 class StarPost implements CommunityMetric
 {
     public function __construct(
         protected ConnectionInterface $db,
+        protected ContentVisibility $visibility,
         protected ?Formatter $formatter = null,
     ) {
     }
@@ -29,6 +31,7 @@ class StarPost implements CommunityMetric
         $prefix = $this->db->getTablePrefix();
 
         $result = $this->db->table('posts')
+            ->whereIn('posts.id', $this->visibility->posts()->select('posts.id'))
             ->leftJoin('post_likes', 'posts.id', '=', 'post_likes.post_id')
             ->join('discussions', 'posts.discussion_id', '=', 'discussions.id')
             ->join('users', 'posts.user_id', '=', 'users.id')
@@ -37,7 +40,8 @@ class StarPost implements CommunityMetric
             ->where('posts.is_private', false)
             ->whereNull('discussions.hidden_at')
             ->where('discussions.is_private', false)
-            ->whereYear('posts.created_at', $year)
+            ->where('posts.created_at', '>=', "$year-01-01 00:00:00")
+            ->where('posts.created_at', '<', ($year + 1).'-01-01 00:00:00')
             ->select('posts.id', 'posts.user_id', 'posts.content', 'posts.discussion_id', 'discussions.title as discussion_title', 'users.username')
             ->selectRaw('COUNT('.$prefix.'post_likes.user_id) as like_count')
             ->groupBy('posts.id', 'posts.user_id', 'posts.content', 'posts.discussion_id', 'discussions.title', 'users.username')

@@ -12,6 +12,7 @@ import type { GenerateStep } from './GenerateModal';
 import CreateTemplateModal from './CreateTemplateModal';
 import type { CustomTemplate } from './CreateTemplateModal';
 import type Mithril from 'mithril';
+import getActiveYear from '../utils/activeYear';
 
 function formatBytes(bytes: number): string {
   if (!bytes || bytes === 0) return '0 B';
@@ -84,6 +85,12 @@ export default class RewindSettingsPage extends ExtensionPage {
   private customTemplates: CustomTemplate[] = [];
   private loadingTemplates: boolean = false;
   private templatesLoaded: boolean = false;
+  activeYear(): number {
+    return Number(this.setting('huseyinfiliz-rewind.automatic_year')())
+      ? app.forum.attribute<number>('rewindPreviousYear')
+      : Number(this.setting('huseyinfiliz-rewind.active_year')()) || app.forum.attribute<number>('rewindPreviousYear');
+  }
+
   private editingTemplate: CustomTemplate | null = null;
   private editorContent: string = '';
   private originalContent: string = '';
@@ -132,8 +139,7 @@ export default class RewindSettingsPage extends ExtensionPage {
   }
 
   openCreateTemplateModal() {
-    const currentYearStr = String(new Date().getFullYear());
-    const activeYear = parseInt(this.setting('huseyinfiliz-rewind.active_year')() || currentYearStr, 10);
+    const activeYear = this.activeYear();
 
     app.modal.show(CreateTemplateModal, {
       existingIds: this.customTemplates.map((t) => t.id),
@@ -327,8 +333,50 @@ export default class RewindSettingsPage extends ExtensionPage {
           })}
         </div>
         <div className="Form-group">
+          {this.buildSettingComponent({
+            type: 'boolean',
+            setting: 'huseyinfiliz-rewind.automatic_year',
+            label: app.translator.trans('huseyinfiliz-rewind.admin.settings.automatic_year_label'),
+          })}
+          <p className="helpText">
+            {app.translator.trans('huseyinfiliz-rewind.admin.settings.automatic_year_help', { year: app.forum.attribute('rewindPreviousYear') })}
+          </p>
+        </div>
+        <div className="Form-group">
           <label>{app.translator.trans('huseyinfiliz-rewind.admin.settings.active_year_label')}</label>
-          <input className="FormControl" type="number" min="2000" max="2100" step="1" bidi={this.setting('huseyinfiliz-rewind.active_year')} />
+          <input
+            className="FormControl"
+            type="number"
+            min="2000"
+            max="2100"
+            step="1"
+            bidi={this.setting('huseyinfiliz-rewind.active_year')}
+            disabled={!!Number(this.setting('huseyinfiliz-rewind.automatic_year')())}
+          />
+        </div>
+        <div className="Form-group">
+          {this.buildSettingComponent({
+            type: 'boolean',
+            setting: 'huseyinfiliz-rewind.automatic_community',
+            label: app.translator.trans('huseyinfiliz-rewind.admin.settings.automatic_community_label'),
+          })}
+          <p className="helpText">{app.translator.trans('huseyinfiliz-rewind.admin.settings.automatic_community_help')}</p>
+        </div>
+        <div className="Form-group">
+          {this.buildSettingComponent({
+            type: 'boolean',
+            setting: 'huseyinfiliz-rewind.public_content_only',
+            label: app.translator.trans('huseyinfiliz-rewind.admin.settings.public_content_only_label'),
+          })}
+          <p className="helpText">{app.translator.trans('huseyinfiliz-rewind.admin.settings.public_content_only_help')}</p>
+        </div>
+        <div className="Form-group">
+          {this.buildSettingComponent({
+            type: 'boolean',
+            setting: 'huseyinfiliz-rewind.default_public',
+            label: app.translator.trans('huseyinfiliz-rewind.admin.settings.default_public_label'),
+          })}
+          <p className="helpText">{app.translator.trans('huseyinfiliz-rewind.admin.settings.default_public_help')}</p>
         </div>
         <div className="Form-group">
           {this.buildSettingComponent({
@@ -455,6 +503,11 @@ export default class RewindSettingsPage extends ExtensionPage {
           <Button className="Button Button--primary" icon="fas fa-users" onclick={() => this.openUserBatchGenerateModal()}>
             {app.translator.trans('huseyinfiliz-rewind.admin.settings.generate_users_button')}
           </Button>
+          <h3>{app.translator.trans('huseyinfiliz-rewind.admin.settings.regenerate_users_title')}</h3>
+          <p className="helpText">{app.translator.trans('huseyinfiliz-rewind.admin.settings.regenerate_users_help')}</p>
+          <Button className="Button" icon="fas fa-sync" onclick={() => this.openUserBatchGenerateModal(true)}>
+            {app.translator.trans('huseyinfiliz-rewind.admin.settings.regenerate_users_button')}
+          </Button>
         </div>
         <hr />
         <div className="Form-group">
@@ -503,7 +556,7 @@ export default class RewindSettingsPage extends ExtensionPage {
   }
 
   openCommunityGenerateModal() {
-    const activeYear = parseInt(app.data.settings['huseyinfiliz-rewind.active_year'] as string, 10) || new Date().getFullYear();
+    const activeYear = getActiveYear();
 
     app.modal.show(GenerateModal, {
       title: app.translator.trans('huseyinfiliz-rewind.admin.generate_modal.community_title') as string,
@@ -515,28 +568,35 @@ export default class RewindSettingsPage extends ExtensionPage {
           value: activeYear,
         },
       ],
-      loadSteps: async (): Promise<GenerateStep[]> => {
+      loadSteps: async (config: Record<string, any>): Promise<GenerateStep[]> => {
         const response = await app.request<{ steps: string[] }>({
           method: 'POST',
           url: app.forum.attribute('apiUrl') + '/rw-community/generate-steps',
+          body: { year: config.year },
         });
         return (response.steps || []).map((key) => ({ key, label: key.replace(/_/g, ' ') }));
       },
       executeStep: async (step: GenerateStep, config: Record<string, any>) => {
-        await app.request({
-          method: 'POST',
-          url: app.forum.attribute('apiUrl') + '/rw-community/generate-step',
-          body: { step: step.key, year: config.year },
-        });
+        let complete = false;
+        while (!complete) {
+          const result = await app.request<{ data: { stepComplete: boolean } }>({
+            method: 'POST',
+            url: app.forum.attribute('apiUrl') + '/rw-community/generate-step',
+            body: { step: step.key, year: config.year },
+          });
+          complete = result.data.stepComplete;
+        }
       },
     });
   }
 
-  openUserBatchGenerateModal() {
-    const activeYear = parseInt(app.data.settings['huseyinfiliz-rewind.active_year'] as string, 10) || new Date().getFullYear();
+  openUserBatchGenerateModal(regenerate = false) {
+    const activeYear = getActiveYear();
 
     app.modal.show(GenerateModal, {
-      title: app.translator.trans('huseyinfiliz-rewind.admin.generate_modal.users_title') as string,
+      title: app.translator.trans(
+        regenerate ? 'huseyinfiliz-rewind.admin.settings.regenerate_users_title' : 'huseyinfiliz-rewind.admin.generate_modal.users_title'
+      ) as string,
       configFields: [
         {
           type: 'number' as const,
@@ -553,7 +613,7 @@ export default class RewindSettingsPage extends ExtensionPage {
         },
       ],
       loadSteps: async (config: Record<string, any>): Promise<GenerateStep[]> => {
-        const body: Record<string, any> = { year: config.year };
+        const body: Record<string, any> = { year: config.year, regenerate };
         if (config.group) body.group = parseInt(config.group, 10);
         const response = await app.request<{ users: Array<{ id: number; username: string }> }>({
           method: 'POST',
@@ -614,8 +674,7 @@ export default class RewindSettingsPage extends ExtensionPage {
   }
 
   templateListView(): Mithril.Children {
-    const currentYearStr = String(new Date().getFullYear());
-    const activeYear = parseInt(this.setting('huseyinfiliz-rewind.active_year')() || currentYearStr, 10);
+    const activeYear = this.activeYear();
 
     return (
       <div>
@@ -692,9 +751,7 @@ export default class RewindSettingsPage extends ExtensionPage {
                 <div className="RewindSettings-yearModeRow" key={String(year)}>
                   <div className="RewindSettings-yearModeYear">
                     <strong>{year}</strong>
-                    {parseInt(this.setting('huseyinfiliz-rewind.active_year')() || currentYearStr, 10) === year && (
-                      <span className="RewindSettings-pathBadge">Active</span>
-                    )}
+                    {activeYear === year && <span className="RewindSettings-pathBadge">Active</span>}
                   </div>
                   <Select
                     value={currentMode || 'slideshow'}
@@ -1021,7 +1078,7 @@ export default class RewindSettingsPage extends ExtensionPage {
   }
 
   getAllDisplayYears(): number[] {
-    const activeYear = parseInt(this.setting('huseyinfiliz-rewind.active_year')() || String(new Date().getFullYear()), 10);
+    const activeYear = this.activeYear();
     const set = new Set<number>([activeYear]);
 
     this.historicalYears.forEach((y) => {

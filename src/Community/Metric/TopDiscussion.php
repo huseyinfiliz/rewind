@@ -4,12 +4,14 @@ namespace HuseyinFiliz\Rewind\Community\Metric;
 
 use Flarum\Formatter\Formatter;
 use HuseyinFiliz\Rewind\Community\CommunityMetric;
+use HuseyinFiliz\Rewind\ContentVisibility;
 use Illuminate\Database\ConnectionInterface;
 
 class TopDiscussion implements CommunityMetric
 {
     public function __construct(
         protected ConnectionInterface $db,
+        protected ContentVisibility $visibility,
         protected ?Formatter $formatter = null,
     ) {
     }
@@ -29,13 +31,15 @@ class TopDiscussion implements CommunityMetric
         $prefix = $this->db->getTablePrefix();
 
         $result = $this->db->table('posts')
+            ->whereIn('posts.id', $this->visibility->posts()->select('posts.id'))
             ->join('discussions', 'discussions.id', '=', 'posts.discussion_id')
             ->where('posts.type', 'comment')
             ->whereNull('posts.hidden_at')
             ->where('posts.is_private', false)
             ->whereNull('discussions.hidden_at')
             ->where('discussions.is_private', false)
-            ->whereYear('posts.created_at', $year)
+            ->where('posts.created_at', '>=', "$year-01-01 00:00:00")
+            ->where('posts.created_at', '<', ($year + 1).'-01-01 00:00:00')
             ->select('discussions.id', 'discussions.title', 'discussions.slug')
             ->selectRaw('COUNT('.$prefix.'posts.id) as post_count')
             ->groupBy('discussions.id', 'discussions.title', 'discussions.slug')
@@ -56,6 +60,7 @@ class TopDiscussion implements CommunityMetric
         }
 
         $firstPost = $this->db->table('posts')
+            ->whereIn('posts.id', $this->visibility->posts()->select('posts.id'))
             ->join('users', 'users.id', '=', 'posts.user_id')
             ->where('posts.discussion_id', $result->id)
             ->where('posts.type', 'comment')

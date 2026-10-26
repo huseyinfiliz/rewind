@@ -26,7 +26,8 @@ class BadgeLeaderboard implements CommunityMetric
     {
         $users = $this->db->table('fof_badge_user')
             ->join('users', 'users.id', '=', 'fof_badge_user.user_id')
-            ->whereYear('fof_badge_user.earned_at', $year)
+            ->where('fof_badge_user.earned_at', '>=', "$year-01-01 00:00:00")
+            ->where('fof_badge_user.earned_at', '<', ($year + 1).'-01-01 00:00:00')
             ->select('fof_badge_user.user_id', 'users.username')
             ->selectRaw('COUNT(*) as badge_count')
             ->groupBy('fof_badge_user.user_id', 'users.username')

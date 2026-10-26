@@ -3,7 +3,6 @@
 namespace HuseyinFiliz\Rewind\Community;
 
 use Flarum\Extension\ExtensionManager;
-use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\QueryException;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -15,7 +14,6 @@ class CommunityMetricRegistry
 
     public function __construct(
         protected ExtensionManager $extensions,
-        protected ConnectionInterface $db,
         protected ?LoggerInterface $logger = null,
     ) {
     }

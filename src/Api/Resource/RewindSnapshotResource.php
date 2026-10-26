@@ -2,7 +2,6 @@
 
 namespace HuseyinFiliz\Rewind\Api\Resource;
 
-use Carbon\Carbon;
 use Flarum\Api\Context;
 use Flarum\Api\Endpoint;
 use Flarum\Api\Resource\AbstractDatabaseResource;
@@ -11,8 +10,10 @@ use Flarum\Api\Sort\SortColumn;
 use Flarum\Group\Group;
 use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
-use HuseyinFiliz\Rewind\Metric\MetricRegistry;
 use HuseyinFiliz\Rewind\Model\RewindSnapshot;
+use HuseyinFiliz\Rewind\RewindYear;
+use HuseyinFiliz\Rewind\SnapshotVisibility;
+use HuseyinFiliz\Rewind\UserSnapshotGenerator;
 use Illuminate\Database\Eloquent\Builder;
 use Laminas\Diactoros\Response\JsonResponse;
 use Tobyz\JsonApiServer\Context as BaseContext;
@@ -23,9 +24,9 @@ use Tobyz\JsonApiServer\Context as BaseContext;
 class RewindSnapshotResource extends AbstractDatabaseResource
 {
     public function __construct(
-        protected MetricRegistry $metricRegistry,
+        protected UserSnapshotGenerator $generator,
         protected SettingsRepositoryInterface $settings,
-        protected ?\Illuminate\Contracts\Cache\Repository $cache = null,
+        protected RewindYear $years,
     ) {
     }
 
@@ -43,6 +44,8 @@ class RewindSnapshotResource extends AbstractDatabaseResource
     {
         /** @var Context $context */
         $actor = $context->getActor();
+
+        SnapshotVisibility::scope($query, $actor);
 
         if (! $actor->can('huseyinfiliz-rewind.moderate')) {
             $enabled = (bool) $this->settings->get('huseyinfiliz-rewind.enabled', false);
@@ -67,12 +70,16 @@ class RewindSnapshotResource extends AbstractDatabaseResource
                         $raw = (string) $context->request->getBody();
                         $body = json_decode($raw, true) ?: [];
                     }
-                    $year = (int) ($body['year'] ?? $this->settings->get('huseyinfiliz-rewind.active_year', date('Y')));
+                    $year = (int) ($body['year'] ?? $this->years->active());
                     $groupId = isset($body['group']) ? (int) $body['group'] : null;
 
-                    $query = User::where('is_email_confirmed', true)
-                        ->whereNotIn('id', RewindSnapshot::where('year', $year)->select('user_id'))
-                        ->orderBy('id');
+                    $query = User::where('is_email_confirmed', true)->orderBy('id');
+                    $snapshotUsers = RewindSnapshot::where('year', $year)->select('user_id');
+                    if (! empty($body['regenerate'])) {
+                        $query->whereIn('id', $snapshotUsers);
+                    } else {
+                        $query->whereNotIn('id', $snapshotUsers);
+                    }
 
                     if ($groupId) {
                         $query->whereHas('groups', fn ($q) => $q->where('groups.id', $groupId));
@@ -129,7 +136,7 @@ class RewindSnapshotResource extends AbstractDatabaseResource
                     $stats = RewindSnapshot::selectRaw('year, COUNT(*) as count')
                         ->groupBy('year')
                         ->orderByDesc('year')
-                        ->get();
+                        ->toBase()->get();
 
                     return new JsonResponse([
                         'years' => $stats->map(fn ($r) => ['year' => $r->year, 'count' => $r->count])->all(),
@@ -256,7 +263,7 @@ class RewindSnapshotResource extends AbstractDatabaseResource
                         if (isset($value['emojis']) && ! empty($value['emojis'])) {
                             return false;
                         }
-                        if (isset($value['peak_hour']) && $value['peak_hour'] !== null) {
+                        if (isset($value['peak_hour'])) {
                             return false;
                         }
                         if (isset($value['peak_month']) && $value['peak_month'] > 0) {
@@ -284,7 +291,7 @@ class RewindSnapshotResource extends AbstractDatabaseResource
     protected function generate(Context $context): RewindSnapshot
     {
         $actor = $context->getActor();
-        $year = (int) $this->settings->get('huseyinfiliz-rewind.active_year', date('Y'));
+        $year = $this->years->active();
         $enabled = (bool) $this->settings->get('huseyinfiliz-rewind.enabled', false);
 
         if (! $actor->can('huseyinfiliz-rewind.moderate')) {
@@ -294,43 +301,7 @@ class RewindSnapshotResource extends AbstractDatabaseResource
             $actor->assertCan('huseyinfiliz-rewind.generate');
         }
 
-        // Rate limit: 1 generate per minute per user (any year)
-        $lastSnapshot = RewindSnapshot::where('user_id', $actor->id)
-            ->orderByDesc('generated_at')
-            ->first();
-
-        if ($lastSnapshot && $lastSnapshot->generated_at && $lastSnapshot->generated_at->diffInSeconds(Carbon::now()) < 60) {
-            throw new \Flarum\Foundation\ValidationException([
-                'rate_limit' => 'Please wait at least 1 minute before generating.',
-            ]);
-        }
-
-        $existing = RewindSnapshot::where('user_id', $actor->id)->where('year', $year)->first();
-
-        if ($existing && ! $actor->can('huseyinfiliz-rewind.moderate')) {
-            throw new \Flarum\User\Exception\PermissionDeniedException();
-        }
-
-        if ($this->cache && ! $this->cache->add("rewind_generating_{$actor->id}", 1, 30)) {
-            throw new \Flarum\Foundation\ValidationException([
-                'rate_limit' => 'Snapshot generation is already in progress.',
-            ]);
-        }
-
-        try {
-            $data = $this->metricRegistry->compute($actor, $year);
-
-            $this->injectCommunityAverages($data, $year);
-
-            $snapshot = RewindSnapshot::updateOrCreate(
-                ['user_id' => $actor->id, 'year' => $year],
-                ['data' => $data, 'generated_at' => Carbon::now(), 'is_public' => $existing ? $existing->is_public : true]
-            );
-
-            return $snapshot;
-        } finally {
-            $this->cache?->forget("rewind_generating_{$actor->id}");
-        }
+        return $this->generator->generate($actor, $year, $actor->can('huseyinfiliz-rewind.moderate'), true);
     }
 
     protected function generateForUser(Context $context): RewindSnapshot
@@ -352,7 +323,7 @@ class RewindSnapshotResource extends AbstractDatabaseResource
         }
 
         $user = User::findOrFail($userId);
-        $activeYear = (int) $this->settings->get('huseyinfiliz-rewind.active_year', date('Y'));
+        $activeYear = $this->years->active();
         $year = (int) ($body['year'] ?? $activeYear);
 
         if ($year < 2000 || $year > $activeYear) {
@@ -361,53 +332,7 @@ class RewindSnapshotResource extends AbstractDatabaseResource
             ]);
         }
 
-        $existing = RewindSnapshot::where('user_id', $userId)
-            ->where('year', $year)
-            ->first();
-
-        $lockKey = "rewind_generating_{$userId}";
-        if ($this->cache && ! $this->cache->add($lockKey, true, 30)) {
-            throw new \Flarum\Foundation\ValidationException([
-                'rate_limit' => 'A Rewind is currently being generated for this user. Please wait.',
-            ]);
-        }
-
-        try {
-            $data = $this->metricRegistry->compute($user, $year);
-
-            $this->injectCommunityAverages($data, $year);
-
-            return RewindSnapshot::updateOrCreate(
-                ['user_id' => $userId, 'year' => $year],
-                [
-                    'data' => $data,
-                    'generated_at' => Carbon::now(),
-                    'is_public' => $existing ? $existing->is_public : true,
-                ]
-            );
-        } finally {
-            $this->cache?->forget($lockKey);
-        }
-    }
-
-    protected function injectCommunityAverages(array &$data, int $year): void
-    {
-        if ($this->settings->get('huseyinfiliz-rewind.community_comparison_enabled')) {
-            $communitySnapshot = \HuseyinFiliz\Rewind\Model\CommunitySnapshot::where('year', $year)->first();
-            if ($communitySnapshot && $communitySnapshot->data) {
-                $cd = $communitySnapshot->data;
-                $memberCount = max(1, $cd['new_users']['count'] ?? 1);
-                $totalPosts = $cd['total_posts']['count'] ?? 0;
-                $totalDiscussions = $cd['total_discussions']['count'] ?? 0;
-                $totalWords = $cd['total_words']['total_words'] ?? 0;
-
-                $data['_community_avg'] = [
-                    'posts' => $memberCount > 0 ? round($totalPosts / $memberCount, 1) : 0,
-                    'discussions' => $memberCount > 0 ? round($totalDiscussions / $memberCount, 1) : 0,
-                    'words' => $memberCount > 0 ? round($totalWords / $memberCount) : 0,
-                ];
-            }
-        }
+        return $this->generator->generate($user, $year);
     }
 
     protected function batchDelete(Context $context): int
@@ -432,7 +357,7 @@ class RewindSnapshotResource extends AbstractDatabaseResource
 
         $groupId = isset($body['group']) ? (int) $body['group'] : null;
         if ($groupId) {
-            $userIds = User::whereHas('groups', fn ($q) => $q->where('groups.id', $groupId))->pluck('id');
+            $userIds = User::whereHas('groups', fn ($q) => $q->where('groups.id', $groupId))->select('id');
             $query->whereIn('user_id', $userIds);
         }
 

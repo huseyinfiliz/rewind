@@ -2,14 +2,14 @@
 
 namespace HuseyinFiliz\Rewind\Community\Metric;
 
-use DateTimeInterface;
 use HuseyinFiliz\Rewind\Community\CommunityMetric;
-use Illuminate\Database\ConnectionInterface;
+use HuseyinFiliz\Rewind\ContentVisibility;
+use HuseyinFiliz\Rewind\DateHistogram;
 
 class BusiestMonth implements CommunityMetric
 {
     public function __construct(
-        protected ConnectionInterface $db,
+        protected ContentVisibility $visibility,
     ) {
     }
 
@@ -25,31 +25,9 @@ class BusiestMonth implements CommunityMetric
 
     public function calculate(int $year): array
     {
-        $dates = $this->db->table('posts')
-            ->where('type', 'comment')
-            ->whereNull('hidden_at')
-            ->where('is_private', false)
-            ->whereYear('created_at', $year)
-            ->pluck('created_at');
-
-        $monthCounts = array_fill(1, 12, 0);
-        foreach ($dates as $date) {
-            if ($date instanceof DateTimeInterface) {
-                $postYear = (int) $date->format('Y');
-                $month = (int) $date->format('n');
-            } else {
-                $timestamp = strtotime((string) $date);
-                if ($timestamp === false) {
-                    continue;
-                }
-                $postYear = (int) date('Y', $timestamp);
-                $month = (int) date('n', $timestamp);
-            }
-
-            if ($postYear === $year && $month >= 1 && $month <= 12) {
-                $monthCounts[$month]++;
-            }
-        }
+        $monthCounts = DateHistogram::counts($this->visibility->posts()
+            ->where('created_at', '>=', "$year-01-01 00:00:00")
+            ->where('created_at', '<', ($year + 1).'-01-01 00:00:00'), 'month');
 
         $peakCount = max($monthCounts);
 

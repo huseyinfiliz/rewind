@@ -19,6 +19,7 @@ class GenerateSnapshotTest extends TestCase
 
         $this->setting('huseyinfiliz-rewind.enabled', true);
         $this->setting('huseyinfiliz-rewind.active_year', 2025);
+        $this->setting('huseyinfiliz-rewind.automatic_year', false);
 
         $this->prepareDatabase([
             'users' => [
@@ -60,6 +61,42 @@ class GenerateSnapshotTest extends TestCase
             'status' => $response->getStatusCode(),
             'body' => json_decode($response->getBody()->getContents(), true),
         ];
+    }
+
+    #[Test]
+    public function new_snapshots_are_private_by_default()
+    {
+        $result = $this->generateAs(2);
+
+        $this->assertEquals(201, $result['status']);
+        $this->assertFalse($result['body']['data']['attributes']['isPublic']);
+        $this->assertEquals(0, $this->database()->table('rw_snaps')->where('user_id', 2)->value('is_public'));
+    }
+
+    #[Test]
+    public function admin_can_choose_public_default_for_new_snapshots()
+    {
+        $this->setting('huseyinfiliz-rewind.default_public', true);
+
+        $result = $this->generateAs(2);
+
+        $this->assertEquals(201, $result['status']);
+        $this->assertTrue($result['body']['data']['attributes']['isPublic']);
+    }
+
+    #[Test]
+    public function regeneration_preserves_visibility_despite_changed_default()
+    {
+        $this->generateAs(3);
+        $this->database()->table('rw_snaps')->where('user_id', 3)->update([
+            'is_public' => true,
+            'generated_at' => Carbon::now()->subMinutes(2)->toDateTimeString(),
+        ]);
+
+        $result = $this->generateAs(3);
+
+        $this->assertEquals(201, $result['status']);
+        $this->assertTrue($result['body']['data']['attributes']['isPublic']);
     }
 
     #[Test]

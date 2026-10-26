@@ -19,7 +19,8 @@ class NewUsers implements CommunityMetric
 
     public function calculate(int $year): array
     {
-        $count = User::whereYear('joined_at', $year)->count();
+        $count = User::where('joined_at', '>=', "$year-01-01 00:00:00")
+            ->where('joined_at', '<', ($year + 1).'-01-01 00:00:00')->count();
 
         return ['count' => $count];
     }

@@ -4,6 +4,7 @@ namespace HuseyinFiliz\Rewind\Metric\Optional;
 
 use Flarum\Extension\ExtensionManager;
 use Flarum\User\User;
+use HuseyinFiliz\Rewind\ContentVisibility;
 use HuseyinFiliz\Rewind\Metric\RewindMetric;
 use Illuminate\Database\ConnectionInterface;
 
@@ -12,6 +13,7 @@ class BestFriend implements RewindMetric
     public function __construct(
         protected ConnectionInterface $db,
         protected ExtensionManager $extensions,
+        protected ContentVisibility $visibility,
     ) {
     }
 
@@ -28,6 +30,7 @@ class BestFriend implements RewindMetric
     public function calculate(User $user, int $year): array
     {
         $result = $this->db->table('post_likes')
+            ->whereIn('post_likes.post_id', $this->visibility->posts()->select('posts.id'))
             ->join('posts', 'posts.id', '=', 'post_likes.post_id')
             ->join('users', 'users.id', '=', 'post_likes.user_id')
             ->where('posts.user_id', $user->id)
@@ -35,7 +38,8 @@ class BestFriend implements RewindMetric
             ->whereNull('posts.hidden_at')
             ->where('posts.is_private', false)
             ->where('post_likes.user_id', '!=', $user->id)
-            ->whereYear('post_likes.created_at', $year)
+            ->where('post_likes.created_at', '>=', "$year-01-01 00:00:00")
+            ->where('post_likes.created_at', '<', ($year + 1).'-01-01 00:00:00')
             ->select('post_likes.user_id', 'users.username')
             ->selectRaw('COUNT(*) as interaction_count')
             ->groupBy('post_likes.user_id', 'users.username')
@@ -50,13 +54,15 @@ class BestFriend implements RewindMetric
         $likesReceived = (int) $result->interaction_count;
 
         $likesGiven = $this->db->table('post_likes')
+            ->whereIn('post_likes.post_id', $this->visibility->posts()->select('posts.id'))
             ->join('posts', 'posts.id', '=', 'post_likes.post_id')
             ->where('post_likes.user_id', $user->id)
             ->where('posts.user_id', $friendId)
             ->where('posts.type', 'comment')
             ->whereNull('posts.hidden_at')
             ->where('posts.is_private', false)
-            ->whereYear('post_likes.created_at', $year)
+            ->where('post_likes.created_at', '>=', "$year-01-01 00:00:00")
+            ->where('post_likes.created_at', '<', ($year + 1).'-01-01 00:00:00')
             ->count();
 
         $mentionsTo = 0;
@@ -64,23 +70,27 @@ class BestFriend implements RewindMetric
 
         if ($this->extensions->isEnabled('flarum-mentions')) {
             $mentionsTo = (int) $this->db->table('post_mentions_user')
+                ->whereIn('post_mentions_user.post_id', $this->visibility->posts()->select('posts.id'))
                 ->join('posts', 'posts.id', '=', 'post_mentions_user.post_id')
                 ->where('posts.user_id', $user->id)
                 ->where('posts.type', 'comment')
                 ->whereNull('posts.hidden_at')
                 ->where('posts.is_private', false)
                 ->where('post_mentions_user.mentions_user_id', $friendId)
-                ->whereYear('post_mentions_user.created_at', $year)
+                ->where('post_mentions_user.created_at', '>=', "$year-01-01 00:00:00")
+                ->where('post_mentions_user.created_at', '<', ($year + 1).'-01-01 00:00:00')
                 ->count();
 
             $mentionsFrom = (int) $this->db->table('post_mentions_user')
+                ->whereIn('post_mentions_user.post_id', $this->visibility->posts()->select('posts.id'))
                 ->join('posts', 'posts.id', '=', 'post_mentions_user.post_id')
                 ->where('posts.user_id', $friendId)
                 ->where('posts.type', 'comment')
                 ->whereNull('posts.hidden_at')
                 ->where('posts.is_private', false)
                 ->where('post_mentions_user.mentions_user_id', $user->id)
-                ->whereYear('post_mentions_user.created_at', $year)
+                ->where('post_mentions_user.created_at', '>=', "$year-01-01 00:00:00")
+                ->where('post_mentions_user.created_at', '<', ($year + 1).'-01-01 00:00:00')
                 ->count();
         }
 

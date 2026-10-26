@@ -3,10 +3,11 @@
 namespace HuseyinFiliz\Rewind\Search\Filter;
 
 use Flarum\Search\Filter\FilterInterface;
+use Flarum\Search\Database\DatabaseSearchState;
 use Flarum\Search\SearchState;
 
 /**
- * @implements FilterInterface<SearchState>
+ * @implements FilterInterface<DatabaseSearchState>
  */
 class UserFilter implements FilterInterface
 {

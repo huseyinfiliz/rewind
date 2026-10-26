@@ -60,6 +60,12 @@ return [
 
     new Extend\ApiResource(CommunitySnapshotResource::class),
 
+    (new Extend\Console())
+        ->command(Console\GenerateCommand::class)
+        ->schedule(Console\GenerateCommand::class, function (\Illuminate\Console\Scheduling\Event $event): void {
+            $event->daily();
+        }, ['--automatic' => true]),
+
     (new Extend\ApiResource(Resource\ForumResource::class))
         ->fields(fn () => [
             Schema\Boolean::make('canViewRewind')
@@ -68,6 +74,8 @@ return [
                 ->get(fn ($model, Context $context) => $context->getActor()->hasPermission('huseyinfiliz-rewind.generate')),
             Schema\Boolean::make('canModerateRewind')
                 ->get(fn ($model, Context $context) => $context->getActor()->hasPermission('huseyinfiliz-rewind.moderate')),
+            Schema\Integer::make('rewindPreviousYear')
+                ->get(fn () => resolve(RewindYear::class)->previous()),
         ]),
 
     (new Extend\SearchDriver(DatabaseSearchDriver::class))
@@ -98,13 +106,18 @@ return [
     (new Extend\Settings())
         ->serializeToForum('rewindEnabled', 'huseyinfiliz-rewind.enabled', 'boolval')
         ->serializeToForum('rewindYearRenderModes', 'huseyinfiliz-rewind.year_render_modes')
-        ->serializeToForum('rewindActiveYear', 'huseyinfiliz-rewind.active_year', 'intval')
+        ->serializeToForum('rewindActiveYear', 'huseyinfiliz-rewind.active_year', RewindYear::class)
+        ->serializeToForum('rewindAutoCommunity', 'huseyinfiliz-rewind.automatic_community', 'boolval')
         ->serializeToForum('rewindShowMenu', 'huseyinfiliz-rewind.show_menu_link', 'boolval')
         ->serializeToForum('rewindHiddenUserSlides', 'huseyinfiliz-rewind.hidden_user_slides')
         ->serializeToForum('rewindHiddenCommunitySlides', 'huseyinfiliz-rewind.hidden_community_slides')
         ->default('huseyinfiliz-rewind.enabled', false)
+        ->default('huseyinfiliz-rewind.public_content_only', true)
+        ->default('huseyinfiliz-rewind.default_public', false)
         ->default('huseyinfiliz-rewind.year_render_modes', '{}')
-        ->default('huseyinfiliz-rewind.active_year', 2025)
+        ->default('huseyinfiliz-rewind.active_year', (int) gmdate('Y') - 1)
+        ->default('huseyinfiliz-rewind.automatic_year', true)
+        ->default('huseyinfiliz-rewind.automatic_community', false)
         ->default('huseyinfiliz-rewind.show_menu_link', true)
         ->default('huseyinfiliz-rewind.hidden_user_slides', '[]')
         ->default('huseyinfiliz-rewind.hidden_community_slides', '[]')

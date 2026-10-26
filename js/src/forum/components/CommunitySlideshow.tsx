@@ -6,6 +6,8 @@ import extractText from 'flarum/common/utils/extractText';
 import { animate, stagger, createTimeline } from 'animejs';
 import { animateClock } from '../animators/clock';
 import type Mithril from 'mithril';
+import ensureCommunityRewind from '../utils/ensureCommunityRewind';
+import { getYearRenderMode } from '../../common/utils/getYearRenderMode';
 
 // Çevirilerdeki HTML (VNode) etiketlerini bozmadan döndürmek için
 function trans(key: string, params?: Record<string, any>): any {
@@ -57,6 +59,7 @@ export default class CommunitySlideshow extends Page {
   slides: Slide[] = [];
   touchStartX = 0;
   isDestroyed = false;
+  preparingCommunity = false;
 
   oninit(vnode: Mithril.Vnode) {
     super.oninit(vnode);
@@ -78,6 +81,19 @@ export default class CommunitySlideshow extends Page {
       const response = await app.store.find('rw-community', { filter: { year } } as any);
       const results = Array.isArray(response) ? response : [response];
       this.snapshot = results[0] || null;
+      if (!this.snapshot) {
+        this.preparingCommunity = true;
+        m.redraw();
+        if (await ensureCommunityRewind(year, () => this.isDestroyed)) {
+          if (getYearRenderMode(year) === 'blade') {
+            window.location.reload();
+            return;
+          }
+          const ready = await app.store.find('rw-community', { filter: { year } } as any);
+          this.snapshot = (Array.isArray(ready) ? ready[0] : ready) || null;
+        }
+        this.preparingCommunity = false;
+      }
       this.data = this.snapshot?.snapshotData() || null;
 
       try {
@@ -362,6 +378,7 @@ export default class CommunitySlideshow extends Page {
       return (
         <div className="rw-slideshow rw-slide--loading">
           <LoadingIndicator />
+          {this.preparingCommunity && <p>{trans('huseyinfiliz-rewind.forum.community.preparing')}</p>}
         </div>
       );
     }

@@ -27,13 +27,15 @@ class BadgesEarned implements RewindMetric
     {
         $count = $this->db->table('fof_badge_user')
             ->where('fof_badge_user.user_id', $user->id)
-            ->whereYear('fof_badge_user.earned_at', $year)
+            ->where('fof_badge_user.earned_at', '>=', "$year-01-01 00:00:00")
+            ->where('fof_badge_user.earned_at', '<', ($year + 1).'-01-01 00:00:00')
             ->count();
 
         $badges = $this->db->table('fof_badge_user')
             ->join('fof_badges', 'fof_badges.id', '=', 'fof_badge_user.badge_id')
             ->where('fof_badge_user.user_id', $user->id)
-            ->whereYear('fof_badge_user.earned_at', $year)
+            ->where('fof_badge_user.earned_at', '>=', "$year-01-01 00:00:00")
+            ->where('fof_badge_user.earned_at', '<', ($year + 1).'-01-01 00:00:00')
             ->select('fof_badges.name', 'fof_badges.icon')
             ->limit(3)
             ->get();

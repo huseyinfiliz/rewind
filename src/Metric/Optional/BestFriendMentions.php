@@ -3,6 +3,7 @@
 namespace HuseyinFiliz\Rewind\Metric\Optional;
 
 use Flarum\User\User;
+use HuseyinFiliz\Rewind\ContentVisibility;
 use HuseyinFiliz\Rewind\Metric\RewindMetric;
 use Illuminate\Database\ConnectionInterface;
 
@@ -10,6 +11,7 @@ class BestFriendMentions implements RewindMetric
 {
     public function __construct(
         protected ConnectionInterface $db,
+        protected ContentVisibility $visibility,
     ) {
     }
 
@@ -26,6 +28,7 @@ class BestFriendMentions implements RewindMetric
     public function calculate(User $user, int $year): array
     {
         $mentioned = $this->db->table('post_mentions_user')
+            ->whereIn('post_mentions_user.post_id', $this->visibility->posts()->select('posts.id'))
             ->join('posts', 'posts.id', '=', 'post_mentions_user.post_id')
             ->join('users', 'users.id', '=', 'post_mentions_user.mentions_user_id')
             ->where('posts.user_id', $user->id)
@@ -33,7 +36,8 @@ class BestFriendMentions implements RewindMetric
             ->whereNull('posts.hidden_at')
             ->where('posts.is_private', false)
             ->where('post_mentions_user.mentions_user_id', '!=', $user->id)
-            ->whereYear('post_mentions_user.created_at', $year)
+            ->where('post_mentions_user.created_at', '>=', "$year-01-01 00:00:00")
+            ->where('post_mentions_user.created_at', '<', ($year + 1).'-01-01 00:00:00')
             ->select('post_mentions_user.mentions_user_id as user_id', 'users.username')
             ->selectRaw('COUNT(*) as mention_count')
             ->groupBy('post_mentions_user.mentions_user_id', 'users.username')
@@ -41,6 +45,7 @@ class BestFriendMentions implements RewindMetric
             ->first();
 
         $mentionedBy = $this->db->table('post_mentions_user')
+            ->whereIn('post_mentions_user.post_id', $this->visibility->posts()->select('posts.id'))
             ->join('posts', 'posts.id', '=', 'post_mentions_user.post_id')
             ->join('users', 'users.id', '=', 'posts.user_id')
             ->where('post_mentions_user.mentions_user_id', $user->id)
@@ -48,7 +53,8 @@ class BestFriendMentions implements RewindMetric
             ->where('posts.type', 'comment')
             ->whereNull('posts.hidden_at')
             ->where('posts.is_private', false)
-            ->whereYear('post_mentions_user.created_at', $year)
+            ->where('post_mentions_user.created_at', '>=', "$year-01-01 00:00:00")
+            ->where('post_mentions_user.created_at', '<', ($year + 1).'-01-01 00:00:00')
             ->select('posts.user_id as user_id', 'users.username')
             ->selectRaw('COUNT(*) as mention_count')
             ->groupBy('posts.user_id', 'users.username')

@@ -28,6 +28,7 @@ class ShowCommunityRewindBladeControllerTest extends TestCase
         $this->setting('huseyinfiliz-rewind.enabled', true);
         $this->setting('huseyinfiliz-rewind.year_render_modes', json_encode(['2025' => 'blade', '2024' => 'blade']));
         $this->setting('huseyinfiliz-rewind.active_year', 2025);
+        $this->setting('huseyinfiliz-rewind.automatic_year', false);
 
         $this->prepareDatabase([
             'users' => [

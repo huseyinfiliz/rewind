@@ -19,6 +19,7 @@ class UpdateSnapshotTest extends TestCase
 
         $this->setting('huseyinfiliz-rewind.enabled', true);
         $this->setting('huseyinfiliz-rewind.active_year', 2025);
+        $this->setting('huseyinfiliz-rewind.automatic_year', false);
 
         $this->prepareDatabase([
             'users' => [
@@ -60,6 +61,15 @@ class UpdateSnapshotTest extends TestCase
 
         $body = json_decode($response->getBody()->getContents(), true);
         $this->assertFalse($body['data']['attributes']['isPublic']);
+
+        $response = $this->send(
+            $this->request('PATCH', '/api/rw-snaps/1', [
+                'authenticatedAs' => 2,
+                'json' => ['data' => ['type' => 'rw-snaps', 'id' => '1', 'attributes' => ['isPublic' => true]]],
+            ])
+        );
+        $this->assertEquals(200, $response->getStatusCode());
+        $this->assertTrue(json_decode((string) $response->getBody(), true)['data']['attributes']['isPublic']);
     }
 
     #[Test]

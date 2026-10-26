@@ -14,22 +14,23 @@ class RewindServiceProvider extends AbstractServiceProvider
 {
     public function register(): void
     {
+        $this->container->singleton(ContentVisibility::class);
         $this->container->singleton(RewindViewResolver::class);
         $this->container->singleton(RewindTemplateManager::class);
 
         $this->container->singleton(MetricRegistry::class);
 
         $this->container->resolving(MetricRegistry::class, function (MetricRegistry $registry) {
-            $registry->addMetric(new Core\PostCount());
-            $registry->addMetric(new Core\DiscussionCount());
-            $registry->addMetric(new Core\ActiveDays());
+            $registry->addMetric($this->container->make(Core\PostCount::class));
+            $registry->addMetric($this->container->make(Core\DiscussionCount::class));
+            $registry->addMetric($this->container->make(Core\ActiveDays::class));
             $registry->addMetric($this->container->make(Core\TopTag::class));
-            $registry->addMetric(new Core\MostActiveMonth());
-            $registry->addMetric(new Core\WordCount());
+            $registry->addMetric($this->container->make(Core\MostActiveMonth::class));
+            $registry->addMetric($this->container->make(Core\WordCount::class));
             $registry->addMetric($this->container->make(Core\BestPost::class));
-            $registry->addMetric(new Core\TopWords());
-            $registry->addMetric(new Core\TopEmojis());
-            $registry->addMetric(new Core\NightOwl());
+            $registry->addMetric($this->container->make(Core\TopWords::class));
+            $registry->addMetric($this->container->make(Core\TopEmojis::class));
+            $registry->addMetric($this->container->make(Core\NightOwl::class));
         });
 
         $this->container->singleton(CommunityMetricRegistry::class);
@@ -37,11 +38,12 @@ class RewindServiceProvider extends AbstractServiceProvider
         $this->container->resolving(CommunityMetricRegistry::class, function (CommunityMetricRegistry $registry) {
             // Core
             $registry->addMetric(new CommunityMetrics\NewUsers());
-            $registry->addMetric(new CommunityMetrics\TotalPosts());
-            $registry->addMetric(new CommunityMetrics\TotalDiscussions());
+            $registry->addMetric($this->container->make(CommunityMetrics\TotalPosts::class));
+            $registry->addMetric($this->container->make(CommunityMetrics\TotalDiscussions::class));
+            $registry->addMetric($this->container->make(CommunityMetrics\ActiveMembers::class));
             $registry->addMetric($this->container->make(CommunityMetrics\TopDiscussion::class));
             $registry->addMetric($this->container->make(CommunityMetrics\MostActiveUser::class));
-            $registry->addMetric(new CommunityMetrics\TotalWords());
+            $registry->addMetric($this->container->make(CommunityMetrics\TotalWords::class));
             $registry->addMetric(new CommunityMetrics\NewMembersList());
             $registry->addMetric($this->container->make(CommunityMetrics\BusiestMonth::class));
             $registry->addMetric($this->container->make(CommunityMetrics\PeakHour::class));

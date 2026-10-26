@@ -2,14 +2,17 @@
 
 namespace HuseyinFiliz\Rewind\Metric\Core;
 
-use Carbon\CarbonInterface;
-use DateTimeInterface;
-use Flarum\Post\Post;
 use Flarum\User\User;
+use HuseyinFiliz\Rewind\ContentVisibility;
+use HuseyinFiliz\Rewind\DateHistogram;
 use HuseyinFiliz\Rewind\Metric\RewindMetric;
 
 class NightOwl implements RewindMetric
 {
+    public function __construct(protected ContentVisibility $visibility)
+    {
+    }
+
     public function key(): string
     {
         return 'night_owl';
@@ -22,31 +25,9 @@ class NightOwl implements RewindMetric
 
     public function calculate(User $user, int $year): array
     {
-        $dates = Post::where('user_id', $user->id)
-            ->where('type', 'comment')
-            ->whereNull('hidden_at')
-            ->where('is_private', false)
-            ->whereYear('created_at', $year)
-            ->pluck('created_at');
-
-        $hourCounts = array_fill(0, 24, 0);
-
-        foreach ($dates as $date) {
-            if ($date instanceof CarbonInterface) {
-                $hour = (int) $date->hour;
-            } elseif ($date instanceof DateTimeInterface) {
-                $hour = (int) $date->format('G');
-            } else {
-                $timestamp = strtotime((string) $date);
-                if ($timestamp === false) {
-                    continue;
-                }
-                $hour = (int) date('G', $timestamp);
-            }
-            if ($hour >= 0 && $hour <= 23) {
-                $hourCounts[$hour]++;
-            }
-        }
+        $hourCounts = DateHistogram::counts($this->visibility->posts()->where('user_id', $user->id)
+            ->where('created_at', '>=', "$year-01-01 00:00:00")
+            ->where('created_at', '<', ($year + 1).'-01-01 00:00:00'), 'hour');
 
         $peakCount = max($hourCounts);
 

@@ -17,6 +17,7 @@ use Flarum\Http\UrlGenerator;
 use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
 use HuseyinFiliz\Rewind\Model\CommunitySnapshot;
+use HuseyinFiliz\Rewind\RewindYear;
 use HuseyinFiliz\Rewind\View\RewindViewResolver;
 use Illuminate\Contracts\Container\Container;
 use Laminas\Diactoros\Response\HtmlResponse;
@@ -31,6 +32,7 @@ class ShowCommunityRewindBladeController implements RequestHandlerInterface
         protected SettingsRepositoryInterface $settings,
         protected Container $container,
         protected UrlGenerator $url,
+        protected RewindYear $years,
     ) {
     }
 
@@ -41,7 +43,7 @@ class ShowCommunityRewindBladeController implements RequestHandlerInterface
 
         $year = (int) ($routeParams['year'] ?? $queryParams['year'] ?? 0);
         if ($year === 0) {
-            $year = (int) $this->settings->get('huseyinfiliz-rewind.active_year', (int) date('Y'));
+            $year = $this->years->active();
         }
 
         $yearModes = json_decode((string) $this->settings->get('huseyinfiliz-rewind.year_render_modes', '{}'), true) ?: [];
@@ -100,6 +102,17 @@ class ShowCommunityRewindBladeController implements RequestHandlerInterface
         /** @var CommunitySnapshot|null $snapshot */
         $snapshot = CommunitySnapshot::where('year', $year)->first();
         if (! $snapshot) {
+            if ($enabled && ! $actor->isGuest() && $actor->is_email_confirmed
+                && $this->settings->get('huseyinfiliz-rewind.automatic_community')
+                && $year === $this->years->active() && $year <= $this->years->previous()
+                && $this->container->has('flarum.frontend.forum')) {
+                // The forum component drives the bounded POST generation steps,
+                // then reloads this URL to render the completed Blade recap.
+                $frontend = $this->container->make('flarum.frontend.forum');
+
+                return new HtmlResponse($frontend->document($request)->render());
+            }
+
             return $this->renderError(
                 'Community Rewind Not Found',
                 "The {$year} Community Rewind has not been generated yet.",

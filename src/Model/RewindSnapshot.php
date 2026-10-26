@@ -6,6 +6,14 @@ use Flarum\Database\AbstractModel;
 use Flarum\User\User;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property int $id
+ * @property int $user_id
+ * @property int $year
+ * @property array<string, mixed> $data
+ * @property \Carbon\Carbon $generated_at
+ * @property bool $is_public
+ */
 class RewindSnapshot extends AbstractModel
 {
     protected $table = 'rw_snaps';

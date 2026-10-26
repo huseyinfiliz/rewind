@@ -19,6 +19,7 @@ class SnapshotVisibilityTest extends TestCase
 
         $this->setting('huseyinfiliz-rewind.enabled', true);
         $this->setting('huseyinfiliz-rewind.active_year', 2025);
+        $this->setting('huseyinfiliz-rewind.automatic_year', false);
 
         $this->prepareDatabase([
             'users' => [
@@ -60,17 +61,61 @@ class SnapshotVisibilityTest extends TestCase
     }
 
     #[Test]
-    public function private_snapshot_data_hidden_from_others()
+    public function private_snapshot_is_indistinguishable_from_missing_to_others()
     {
         $response = $this->send(
             $this->request('GET', '/api/rw-snaps/2', ['authenticatedAs' => 2])
         );
 
-        $this->assertEquals(200, $response->getStatusCode());
+        $this->database()->table('rw_snaps')->where('id', 2)->delete();
+        $missing = $this->send(
+            $this->request('GET', '/api/rw-snaps/2', ['authenticatedAs' => 2])
+        );
 
-        $body = json_decode($response->getBody()->getContents(), true);
-        // Data should be null/hidden for non-owner, non-moderator
-        $this->assertNull($body['data']['attributes']['data']);
+        $this->assertEquals(404, $response->getStatusCode());
+        $this->assertEquals($missing->getStatusCode(), $response->getStatusCode());
+        $this->assertEquals((string) $missing->getBody(), (string) $response->getBody());
+    }
+
+    #[Test]
+    public function private_snapshots_are_excluded_from_filtered_lists_and_includes()
+    {
+        $response = $this->send(
+            $this->request('GET', '/api/rw-snaps', ['authenticatedAs' => 2])
+                ->withQueryParams(['filter' => ['user' => 4], 'include' => 'user'])
+        );
+
+        $this->assertEquals(200, $response->getStatusCode());
+        $body = json_decode((string) $response->getBody(), true);
+        $this->assertSame([], $body['data']);
+        $this->assertEmpty($body['included'] ?? []);
+    }
+
+    #[Test]
+    public function owner_can_list_own_private_snapshots()
+    {
+        $response = $this->send(
+            $this->request('GET', '/api/rw-snaps', ['authenticatedAs' => 4])
+                ->withQueryParams(['filter' => ['user' => 4]])
+        );
+
+        $body = json_decode((string) $response->getBody(), true);
+        $this->assertEquals(200, $response->getStatusCode());
+        $this->assertSame(['2'], array_column($body['data'], 'id'));
+    }
+
+    #[Test]
+    public function guests_cannot_list_or_show_private_snapshots()
+    {
+        $this->prepareDatabase(['group_permission' => [
+            ['group_id' => 2, 'permission' => 'huseyinfiliz-rewind.viewForum'],
+        ]]);
+
+        $response = $this->send($this->request('GET', '/api/rw-snaps')->withQueryParams(['filter' => ['user' => 4]]));
+        $this->assertEquals(200, $response->getStatusCode());
+        $this->assertSame([], json_decode((string) $response->getBody(), true)['data']);
+        $response = $this->send($this->request('GET', '/api/rw-snaps/2'));
+        $this->assertEquals(404, $response->getStatusCode());
     }
 
     #[Test]

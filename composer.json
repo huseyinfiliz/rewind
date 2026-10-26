@@ -92,6 +92,8 @@
         "analyse:phpstan": "Runs static code analysis using PHPStan."
     },
     "require-dev": {
+        "flarum/likes": "^2.0",
+        "flarum/tags": "^2.0",
         "flarum/testing": "^2.0",
         "flarum/phpstan": "*"
     }

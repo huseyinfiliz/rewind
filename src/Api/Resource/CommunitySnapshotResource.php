@@ -10,7 +10,9 @@ use Flarum\Api\Schema;
 use Flarum\Api\Sort\SortColumn;
 use Flarum\Settings\SettingsRepositoryInterface;
 use HuseyinFiliz\Rewind\Community\CommunityMetricRegistry;
+use HuseyinFiliz\Rewind\CommunitySnapshotGenerator;
 use HuseyinFiliz\Rewind\Model\CommunitySnapshot;
+use HuseyinFiliz\Rewind\RewindYear;
 use Illuminate\Database\Eloquent\Builder;
 use Laminas\Diactoros\Response\JsonResponse;
 use Tobyz\JsonApiServer\Context as BaseContext;
@@ -23,6 +25,8 @@ class CommunitySnapshotResource extends AbstractDatabaseResource
     public function __construct(
         protected CommunityMetricRegistry $metricRegistry,
         protected SettingsRepositoryInterface $settings,
+        protected CommunitySnapshotGenerator $generator,
+        protected RewindYear $years,
     ) {
     }
 
@@ -53,6 +57,31 @@ class CommunitySnapshotResource extends AbstractDatabaseResource
     public function endpoints(): array
     {
         return [
+            Endpoint\Endpoint::make('ensure')
+                ->route('POST', '/ensure')
+                ->authenticated()
+                ->action(function (Context $context) {
+                    $actor = $context->getActor();
+                    $actor->assertCan('huseyinfiliz-rewind.viewForum');
+                    if (! $actor->is_email_confirmed || ! $this->settings->get('huseyinfiliz-rewind.enabled') || ! $this->settings->get('huseyinfiliz-rewind.automatic_community')) {
+                        throw new \Flarum\User\Exception\PermissionDeniedException;
+                    }
+                    $body = $context->request->getParsedBody() ?: json_decode((string) $context->request->getBody(), true) ?: [];
+                    $year = (int) ($body['year'] ?? $this->years->active());
+                    if ($year !== $this->years->active() || $year > $this->years->previous() || $year < 2000) {
+                        throw new \Flarum\Foundation\ValidationException(['year' => 'Automatic generation is limited to the active, completed year.']);
+                    }
+                    try {
+                        return $this->generator->step($year);
+                    } catch (\Flarum\Foundation\ValidationException $e) {
+                        if (! isset($e->getAttributes()['rate_limit'])) {
+                            throw $e;
+                        }
+
+                        return ['ready' => false, 'busy' => true];
+                    }
+                })
+                ->response(fn (Context $context, array $progress) => new JsonResponse($progress, $progress['ready'] ? 200 : 202)),
             Endpoint\Endpoint::make('generate-steps')
                 ->route('POST', '/generate-steps')
                 ->authenticated()
@@ -60,7 +89,14 @@ class CommunitySnapshotResource extends AbstractDatabaseResource
                 ->action(function (Context $context) {
                     return null;
                 })
-                ->response(function () {
+                ->response(function (Context $context) {
+                    $body = $context->request->getParsedBody() ?: json_decode((string) $context->request->getBody(), true) ?: [];
+                    $year = (int) ($body['year'] ?? $this->years->active());
+                    if ($year < 2000 || $year > $this->years->active()) {
+                        throw new \Flarum\Foundation\ValidationException(['year' => 'Invalid recap year.']);
+                    }
+                    $this->generator->begin($year);
+
                     return new JsonResponse([
                         'steps' => $this->metricRegistry->availableKeys(),
                     ]);
@@ -99,19 +135,7 @@ class CommunitySnapshotResource extends AbstractDatabaseResource
                 ->action(function (Context $context) {
                     return $this->generateStep($context);
                 })
-                ->response(function (Context $context, CommunitySnapshot $snapshot) {
-                    return new JsonResponse([
-                        'data' => [
-                            'type' => 'rw-community',
-                            'id' => (string) $snapshot->id,
-                            'attributes' => [
-                                'year' => $snapshot->year,
-                                'data' => $snapshot->data,
-                                'generatedAt' => $snapshot->generated_at->toIso8601String(),
-                            ],
-                        ],
-                    ]);
-                }),
+                ->response(fn (Context $context, array $progress) => new JsonResponse(['data' => $progress])),
         ];
     }
 
@@ -133,7 +157,11 @@ class CommunitySnapshotResource extends AbstractDatabaseResource
 
     protected function generate(Context $context): CommunitySnapshot
     {
-        $year = (int) $this->settings->get('huseyinfiliz-rewind.active_year', date('Y'));
+        $body = $context->request->getParsedBody() ?: json_decode((string) $context->request->getBody(), true) ?: [];
+        $year = (int) ($body['year'] ?? $this->years->active());
+        if ($year < 2000 || $year > $this->years->active()) {
+            throw new \Flarum\Foundation\ValidationException(['year' => 'Invalid recap year.']);
+        }
 
         // Rate limit: 1 regenerate per minute per year
         $existing = CommunitySnapshot::where('year', $year)->first();
@@ -143,15 +171,10 @@ class CommunitySnapshotResource extends AbstractDatabaseResource
             ]);
         }
 
-        $data = $this->metricRegistry->compute($year);
-
-        return CommunitySnapshot::updateOrCreate(
-            ['year' => $year],
-            ['data' => $data, 'generated_at' => Carbon::now()]
-        );
+        return $this->generator->generate($year, true);
     }
 
-    protected function generateStep(Context $context): CommunitySnapshot
+    protected function generateStep(Context $context): array
     {
         $request = $context->request;
         $body = $request->getParsedBody();
@@ -162,7 +185,7 @@ class CommunitySnapshotResource extends AbstractDatabaseResource
         }
 
         $step = $body['step'] ?? null;
-        $activeYear = (int) $this->settings->get('huseyinfiliz-rewind.active_year', date('Y'));
+        $activeYear = $this->years->active();
         $year = (int) ($body['year'] ?? $activeYear);
 
         if ($year < 2000 || $year > $activeYear) {
@@ -177,21 +200,6 @@ class CommunitySnapshotResource extends AbstractDatabaseResource
             ]);
         }
 
-        $snapshot = CommunitySnapshot::firstOrCreate(
-            ['year' => $year],
-            ['data' => [], 'generated_at' => Carbon::now()]
-        );
-
-        $result = $this->metricRegistry->computeOne($step, $year);
-
-        if ($result !== null) {
-            $data = $snapshot->data ?? [];
-            $data[$step] = $result;
-            $snapshot->data = $data;
-            $snapshot->generated_at = Carbon::now();
-            $snapshot->save();
-        }
-
-        return $snapshot;
+        return $this->generator->step($year, $step, true);
     }
 }

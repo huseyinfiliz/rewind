@@ -2,6 +2,8 @@ includes:
     - vendor/flarum/phpstan/extension.neon
 
 parameters:
+    bootstrapFiles:
+        - tests/phpstan-bootstrap.php
     level: 6
     paths:
         - extend.php

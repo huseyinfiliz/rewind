@@ -2,12 +2,16 @@
 
 namespace HuseyinFiliz\Rewind\Metric\Core;
 
-use Flarum\Discussion\Discussion;
 use Flarum\User\User;
+use HuseyinFiliz\Rewind\ContentVisibility;
 use HuseyinFiliz\Rewind\Metric\RewindMetric;
 
 class DiscussionCount implements RewindMetric
 {
+    public function __construct(protected ContentVisibility $visibility)
+    {
+    }
+
     public function key(): string
     {
         return 'discussion_count';
@@ -20,10 +24,11 @@ class DiscussionCount implements RewindMetric
 
     public function calculate(User $user, int $year): array
     {
-        $count = Discussion::where('user_id', $user->id)
+        $count = $this->visibility->discussions()->where('user_id', $user->id)
             ->whereNull('hidden_at')
             ->where('is_private', false)
-            ->whereYear('created_at', $year)
+            ->where('created_at', '>=', "$year-01-01 00:00:00")
+            ->where('created_at', '<', ($year + 1).'-01-01 00:00:00')
             ->count();
 
         return ['count' => $count];

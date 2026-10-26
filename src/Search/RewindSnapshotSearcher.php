@@ -7,6 +7,7 @@ use Flarum\Search\Filter\FilterManager;
 use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
 use HuseyinFiliz\Rewind\Model\RewindSnapshot;
+use HuseyinFiliz\Rewind\SnapshotVisibility;
 use Illuminate\Database\Eloquent\Builder;
 
 class RewindSnapshotSearcher extends AbstractSearcher
@@ -22,6 +23,8 @@ class RewindSnapshotSearcher extends AbstractSearcher
     public function getQuery(User $actor): Builder
     {
         $query = RewindSnapshot::query()->select('rw_snaps.*');
+
+        SnapshotVisibility::scope($query, $actor);
 
         $enabled = (bool) $this->settings->get('huseyinfiliz-rewind.enabled', false);
 

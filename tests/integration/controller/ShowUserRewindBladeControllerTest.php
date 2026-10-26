@@ -28,6 +28,7 @@ class ShowUserRewindBladeControllerTest extends TestCase
         $this->setting('huseyinfiliz-rewind.enabled', true);
         $this->setting('huseyinfiliz-rewind.year_render_modes', json_encode(['2025' => 'blade', '2024' => 'blade']));
         $this->setting('huseyinfiliz-rewind.active_year', 2025);
+        $this->setting('huseyinfiliz-rewind.automatic_year', false);
 
         $this->prepareDatabase([
             'users' => [
@@ -110,9 +111,16 @@ class ShowUserRewindBladeControllerTest extends TestCase
             $this->request('GET', '/rewind/view/4/2025', ['authenticatedAs' => 2])
         );
 
-        $this->assertEquals(403, $response->getStatusCode());
+        $this->assertEquals(404, $response->getStatusCode());
         $body = (string) $response->getBody();
-        $this->assertStringContainsString('Private Rewind', $body);
+        $this->assertStringContainsString('Rewind Not Found', $body);
+
+        $this->database()->table('rw_snaps')->where('id', 2)->delete();
+        $missing = $this->send(
+            $this->request('GET', '/rewind/view/4/2025', ['authenticatedAs' => 2])
+        );
+        $this->assertEquals($missing->getStatusCode(), $response->getStatusCode());
+        $this->assertSame((string) $missing->getBody(), $body);
     }
 
     #[Test]
