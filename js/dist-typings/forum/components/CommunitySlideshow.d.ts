@@ -16,6 +16,7 @@ export default class CommunitySlideshow extends Page {
     slides: Slide[];
     touchStartX: number;
     isDestroyed: boolean;
+    preparingCommunity: boolean;
     oninit(vnode: Mithril.Vnode): void;
     getYear(): number;
     loadSnapshot(): Promise<void>;

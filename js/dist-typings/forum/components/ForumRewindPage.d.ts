@@ -8,6 +8,9 @@ export default class ForumRewindPage extends Page {
     userHasSnapshot: boolean;
     selectedYear: number;
     availableYears: number[];
+    preparingCommunity: boolean;
+    isDestroyed: boolean;
+    onremove(vnode: Mithril.VnodeDOM): void;
     oninit(vnode: Mithril.Vnode): void;
     loadAvailableYears(): Promise<void>;
     loadData(initial?: boolean): Promise<void>;

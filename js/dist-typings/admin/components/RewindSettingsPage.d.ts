@@ -16,6 +16,7 @@ export default class RewindSettingsPage extends ExtensionPage {
     private customTemplates;
     private loadingTemplates;
     private templatesLoaded;
+    activeYear(): number;
     private editingTemplate;
     private editorContent;
     private originalContent;
@@ -48,7 +49,7 @@ export default class RewindSettingsPage extends ExtensionPage {
         label: string;
     }>>;
     openCommunityGenerateModal(): void;
-    openUserBatchGenerateModal(): void;
+    openUserBatchGenerateModal(regenerate?: boolean): void;
     openDeleteRewindsModal(): void;
     templatesTab(): Mithril.Children;
     templateListView(): Mithril.Children;

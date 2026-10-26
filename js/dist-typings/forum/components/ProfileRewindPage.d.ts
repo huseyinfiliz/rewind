@@ -5,6 +5,8 @@ export default class ProfileRewindPage extends UserPage {
     loading: boolean;
     generating: boolean;
     snapshots: any[];
+    isDestroyed: boolean;
+    onremove(vnode: Mithril.VnodeDOM): void;
     oninit(vnode: Mithril.Vnode): void;
     show(user: User): void;
     isOwner(): boolean;
