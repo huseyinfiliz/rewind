@@ -14,7 +14,8 @@ class DateHistogram
     {
         $column = $query->getQuery()->getGrammar()->wrap('posts.created_at');
         $expression = match ($query->getConnection()->getDriverName()) {
-            'sqlite' => "CAST(strftime('".($unit === 'month' ? '%m' : '%H')."', {$column}) AS INTEGER)",
+            // SQLite can round fractional seconds into the next month. Bucket whole seconds.
+            'sqlite' => "CAST(strftime('".($unit === 'month' ? '%m' : '%H')."', substr({$column}, 1, 19)) AS INTEGER)",
             'pgsql' => 'EXTRACT('.($unit === 'month' ? 'MONTH' : 'HOUR')." FROM {$column})",
             default => ($unit === 'month' ? 'MONTH' : 'HOUR')."({$column})",
         };

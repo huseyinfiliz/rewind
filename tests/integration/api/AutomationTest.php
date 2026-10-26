@@ -223,13 +223,40 @@ class AutomationTest extends TestCase
     }
 
     #[Test]
-    public function year_ranges_include_the_final_fractional_second_and_exclude_neighboring_years()
+    public function year_ranges_include_the_final_second_and_exclude_neighboring_years()
     {
         $this->database()->table('posts')->insert([
             ['id' => 10, 'discussion_id' => 1, 'number' => 10, 'user_id' => 2, 'type' => 'comment', 'created_at' => '2024-12-31 23:59:59', 'content' => '<t>excluded words</t>'],
             ['id' => 11, 'discussion_id' => 1, 'number' => 11, 'user_id' => 2, 'type' => 'comment', 'created_at' => '2026-01-01 00:00:00', 'content' => '<t>excluded words</t>'],
-            ['id' => 12, 'discussion_id' => 1, 'number' => 12, 'user_id' => 2, 'type' => 'comment', 'created_at' => '2025-12-31 23:59:59.999999', 'content' => '<t>included words</t>'],
+            // Core's MySQL/PostgreSQL columns have second precision, so do not round into 2026 on insert.
+            ['id' => 12, 'discussion_id' => 1, 'number' => 12, 'user_id' => 2, 'type' => 'comment', 'created_at' => '2025-12-31 23:59:59', 'content' => '<t>included words</t>'],
         ]);
+        $data = $this->app()->getContainer()->make(CommunitySnapshotGenerator::class)->generate(2025)->data;
+        $this->assertEquals(3, $data['total_posts']['count']);
+        $this->assertEquals(6, $data['total_words']['total_words']);
+        $this->assertEquals(12, $data['busiest_month']['peak_month']);
+        $this->assertEquals(2, $data['busiest_month']['peak_count']);
+        $this->assertEquals(23, $data['peak_hour']['peak_hour']);
+        $this->assertEquals(2, $data['peak_hour']['peak_count']);
+    }
+
+    #[Test]
+    public function sqlite_histograms_preserve_fractional_year_end_timestamps()
+    {
+        if ($this->database()->getDriverName() !== 'sqlite') {
+            $this->markTestSkipped('SQLite stores fractional timestamps as text; core SQL columns use whole seconds.');
+        }
+
+        $this->database()->table('posts')->insert([
+            'id' => 12,
+            'discussion_id' => 1,
+            'number' => 12,
+            'user_id' => 2,
+            'type' => 'comment',
+            'created_at' => '2025-12-31 23:59:59.999999',
+            'content' => '<t>included words</t>',
+        ]);
+
         $data = $this->app()->getContainer()->make(CommunitySnapshotGenerator::class)->generate(2025)->data;
         $this->assertEquals(3, $data['total_posts']['count']);
         $this->assertEquals(6, $data['total_words']['total_words']);
