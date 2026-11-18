@@ -56,14 +56,14 @@ class UserSnapshotGenerator
 
             $this->locks->assertOwned($lock);
 
-            $snapshot = RewindSnapshot::updateOrCreate(
-                ['user_id' => $user->id, 'year' => $year],
-                [
-                    'data' => $data,
-                    'generated_at' => Carbon::now(),
-                    'is_public' => $existing ? $existing->is_public : (bool) $this->settings->get('huseyinfiliz-rewind.default_public', false),
-                ]
-            );
+            $snapshot = RewindSnapshot::firstOrNew(['user_id' => $user->id, 'year' => $year]);
+            if (! $snapshot->exists) {
+                $snapshot->is_public = (bool) $this->settings->get('huseyinfiliz-rewind.default_public', false);
+            }
+
+            // Regeneration must not overwrite an owner's concurrent visibility change.
+            $snapshot->fill(['data' => $data, 'generated_at' => Carbon::now()]);
+            $snapshot->save();
 
             $this->events->dispatch(new SnapshotGenerated($snapshot, ! $snapshot->wasRecentlyCreated));
 
