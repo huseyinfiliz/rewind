@@ -589,10 +589,10 @@ export default class SlideshowPage extends Page {
           {slide.type === 'intro'
             ? this.renderIntro()
             : slide.type === 'summary'
-            ? this.renderSummary()
-            : slide.type === 'empty'
-            ? this.renderEmpty()
-            : this.renderMetricSlide(slide.key!, slide.data)}
+              ? this.renderSummary()
+              : slide.type === 'empty'
+                ? this.renderEmpty()
+                : this.renderMetricSlide(slide.key!, slide.data)}
         </div>
       </div>
     );
