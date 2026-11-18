@@ -11,7 +11,7 @@ export function animateWords(root: Element, tl: any) {
       translateZ: () => [random(400, 800), 0],
       rotateX: () => [random(-180, 180), 0],
       rotateY: () => [random(-180, 180), 0],
-      rotateZ: (el: any, i: number) => {
+      rotateZ: (_el: unknown, i = 0) => {
         return [random(-90, 90), rotations[i % rotations.length] || 0];
       },
       delay: stagger(120, { start: 100 }),
