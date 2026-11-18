@@ -56,6 +56,15 @@ class AuditIntegrationTest extends TestCase
         ]);
     }
 
+    private function assertPayloadSame(array $expected, array $actual): void
+    {
+        // JSON object member order is not preserved by every database engine.
+        ksort($expected);
+        ksort($actual);
+
+        $this->assertSame($expected, $actual);
+    }
+
     #[Test]
     public function visibility_logs_only_a_successful_change_with_the_owner_as_actor(): void
     {
@@ -75,7 +84,7 @@ class AuditIntegrationTest extends TestCase
         $logs = AuditLog::where('action', 'rewind.personal.visibility_changed')->get();
         $this->assertCount(1, $logs);
         $this->assertEquals(2, $logs->first()->actor_id);
-        $this->assertSame([
+        $this->assertPayloadSame([
             'snapshot_id' => (int) $snapshot->id, 'user_id' => 2, 'year' => 2025,
             'old_visibility' => 'public', 'visibility' => 'private',
         ], $logs->first()->payload);
@@ -97,7 +106,7 @@ class AuditIntegrationTest extends TestCase
             $this->assertEquals(200, $response->getStatusCode());
             $log = AuditLog::where('action', 'rewind.personal.'.$action)->sole();
             $this->assertEquals(1, $log->actor_id);
-            $this->assertSame(['snapshot_id', 'year', 'user_id'], array_keys($log->payload));
+            $this->assertEqualsCanonicalizing(['snapshot_id', 'year', 'user_id'], array_keys($log->payload));
             $this->assertSame(2, $log->payload['user_id']);
         }
         $this->assertSame(2, AuditLog::where('action', 'like', 'rewind.%')->count());
@@ -137,7 +146,7 @@ class AuditIntegrationTest extends TestCase
         $this->assertSame(1, AuditLog::where('action', 'rewind.community.created')->count());
         $generator->generate(2025, true);
         $this->assertSame(1, AuditLog::where('action', 'rewind.community.regenerated')->count());
-        $this->assertSame(['snapshot_id', 'year'], array_keys(AuditLog::where('action', 'rewind.community.created')->sole()->payload));
+        $this->assertEqualsCanonicalizing(['snapshot_id', 'year'], array_keys(AuditLog::where('action', 'rewind.community.created')->sole()->payload));
     }
 
     #[Test]
@@ -163,7 +172,7 @@ class AuditIntegrationTest extends TestCase
         }
         $log = AuditLog::where('action', 'rewind.personal.batch_deleted')->sole();
         $this->assertEquals(1, $log->actor_id);
-        $this->assertSame(['year' => 2025, 'group_id' => 4, 'deleted_count' => 1], $log->payload);
+        $this->assertPayloadSame(['year' => 2025, 'group_id' => 4, 'deleted_count' => 1], $log->payload);
         $this->assertSame(1, AuditLog::where('action', 'rewind.personal.deleted')->count());
         $this->assertSame(2, RewindSnapshot::count());
     }
@@ -195,7 +204,7 @@ class AuditIntegrationTest extends TestCase
             foreach (['created', 'updated', 'deleted'] as $action) {
                 $log = AuditLog::where('action', 'rewind.template.'.$action)->sole();
                 $this->assertEquals(1, $log->actor_id);
-                $this->assertSame(['template_id' => 'user_2099'], $log->payload);
+                $this->assertPayloadSame(['template_id' => 'user_2099'], $log->payload);
             }
         } finally {
             if (file_exists($path)) {
