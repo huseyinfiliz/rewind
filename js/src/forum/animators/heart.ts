@@ -110,9 +110,12 @@ function animateReceived(root: Element) {
 
     container.appendChild(el);
 
-    setTimeout(() => {
-      if (container.contains(el)) container.removeChild(el);
-    }, dur * 1000 + 100);
+    setTimeout(
+      () => {
+        if (container.contains(el)) container.removeChild(el);
+      },
+      dur * 1000 + 100
+    );
   }
 
   // Burst: spawn several hearts at once
