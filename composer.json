@@ -41,6 +41,13 @@
         "flarum-extension": {
             "title": "Rewind",
             "category": "feature",
+            "optional-dependencies": [
+                "flarum/likes",
+                "flarum/mentions",
+                "fof/badges",
+                "fof/best-answer",
+                "flarum/audit"
+            ],
             "icon": {
                 "name": "fas fa-history",
                 "color": "#fff",
