@@ -10,6 +10,7 @@ jobs:
       enable_prettier: true
       enable_typescript: true
       enable_tests: true
+      node_version: 22
 
       frontend_directory: ./js
       backend_directory: .
