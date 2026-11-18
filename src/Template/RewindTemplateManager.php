@@ -13,9 +13,11 @@ namespace HuseyinFiliz\Rewind\Template;
 
 use Carbon\Carbon;
 use Flarum\Foundation\Paths;
+use HuseyinFiliz\Rewind\Event\TemplateChanged;
 use HuseyinFiliz\Rewind\Template\Exception\InvalidTemplateException;
 use HuseyinFiliz\Rewind\Template\Exception\TemplateAlreadyExistsException;
 use HuseyinFiliz\Rewind\Template\Exception\TemplateNotFoundException;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\View\Factory as ViewFactory;
 
 class RewindTemplateManager
@@ -28,6 +30,7 @@ class RewindTemplateManager
     public function __construct(
         protected Paths $paths,
         protected ?ViewFactory $viewFactory = null,
+        protected ?Dispatcher $events = null,
     ) {
         $this->storageViewsPath = rtrim($this->paths->storage, '/\\').'/rewind/views';
         $this->builtinViewsPath = dirname(__DIR__, 2).'/resources/views';
@@ -271,7 +274,10 @@ class RewindTemplateManager
 
         $this->clearCompiledViewCache();
 
-        return $this->getTemplate($id, true);
+        $template = $this->getTemplate($id, true);
+        $this->events?->dispatch(new TemplateChanged($id, 'created'));
+
+        return $template;
     }
 
     /**
@@ -300,13 +306,19 @@ class RewindTemplateManager
             throw new TemplateNotFoundException("Custom template '{$id}' does not exist. Create it first before editing.");
         }
 
+        $changed = file_get_contents($destPath) !== $content;
         if (file_put_contents($destPath, $content, LOCK_EX) === false) {
             throw new \RuntimeException("Failed to save template file '{$destPath}'.");
         }
 
         $this->clearCompiledViewCache();
 
-        return $this->getTemplate($id, true);
+        $template = $this->getTemplate($id, true);
+        if ($changed) {
+            $this->events?->dispatch(new TemplateChanged($id, 'updated'));
+        }
+
+        return $template;
     }
 
     /**
@@ -332,6 +344,7 @@ class RewindTemplateManager
         }
 
         $this->clearCompiledViewCache();
+        $this->events?->dispatch(new TemplateChanged($id, 'deleted'));
     }
 
     public function ensureStorageDirExists(): void

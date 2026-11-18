@@ -7,8 +7,10 @@ use Flarum\Foundation\ValidationException;
 use Flarum\Settings\SettingsRepositoryInterface;
 use HuseyinFiliz\Rewind\Community\CommunityMetricRegistry;
 use HuseyinFiliz\Rewind\Community\Metric\TotalWords;
+use HuseyinFiliz\Rewind\Event\SnapshotGenerated;
 use HuseyinFiliz\Rewind\Model\CommunitySnapshot;
 use Illuminate\Contracts\Cache\Repository;
+use Illuminate\Contracts\Events\Dispatcher;
 
 class CommunitySnapshotGenerator
 {
@@ -18,6 +20,7 @@ class CommunitySnapshotGenerator
         protected GenerationLock $locks,
         protected Repository $cache,
         protected SettingsRepositoryInterface $settings,
+        protected Dispatcher $events,
     ) {
     }
 
@@ -80,8 +83,9 @@ class CommunitySnapshotGenerator
             $complete = count(array_diff($keys, array_keys($draft['data']))) === 0;
             if ($complete) {
                 // Publish once, after every metric is finished. Existing recaps remain intact until then.
-                CommunitySnapshot::updateOrCreate(['year' => $year], ['data' => $draft['data'], 'generated_at' => Carbon::now()]);
+                $snapshot = CommunitySnapshot::updateOrCreate(['year' => $year], ['data' => $draft['data'], 'generated_at' => Carbon::now()]);
                 $this->cache->forget($this->draftKey($year));
+                $this->events->dispatch(new SnapshotGenerated($snapshot, ! $snapshot->wasRecentlyCreated));
             } else {
                 $this->cache->put($this->draftKey($year), $draft, 86400);
             }

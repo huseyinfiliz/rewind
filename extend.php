@@ -101,6 +101,10 @@ return [
         ->whenExtensionEnabled('fof-best-answer', fn () => [
             (new Extend\ServiceProvider())
                 ->register(Metric\Optional\BestAnswersMetricsProvider::class),
+        ])
+        ->whenExtensionEnabled('flarum-audit', fn () => [
+            (new \Flarum\Audit\Extend\Audit())
+                ->using(new Integration\AuditIntegration()),
         ]),
 
     (new Extend\Settings())

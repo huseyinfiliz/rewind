@@ -1,3 +1,21 @@
+flarum-audit:
+  lib:
+    browser:
+      rewind:
+        personal:
+          created: "Generated {username}'s {year} Rewind"
+          regenerated: "Regenerated {username}'s {year} Rewind"
+          visibility_changed: "Changed {username}'s {year} Rewind visibility from {old_visibility} to {visibility}"
+          deleted: "Deleted {username}'s {year} Rewind"
+          batch_deleted: "Deleted {deleted_count} personal Rewinds for {year}"
+        community:
+          created: "Generated the {year} community Rewind"
+          regenerated: "Regenerated the {year} community Rewind"
+        template:
+          created: "Created Rewind template {template_id}"
+          updated: "Updated Rewind template {template_id}"
+          deleted: "Deleted Rewind template {template_id}"
+
 huseyinfiliz-rewind:
   admin:
     tabs:

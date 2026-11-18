@@ -10,10 +10,12 @@ use Flarum\Api\Sort\SortColumn;
 use Flarum\Group\Group;
 use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
+use HuseyinFiliz\Rewind\Event\SnapshotsDeleted;
 use HuseyinFiliz\Rewind\Model\RewindSnapshot;
 use HuseyinFiliz\Rewind\RewindYear;
 use HuseyinFiliz\Rewind\SnapshotVisibility;
 use HuseyinFiliz\Rewind\UserSnapshotGenerator;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\Eloquent\Builder;
 use Laminas\Diactoros\Response\JsonResponse;
 use Tobyz\JsonApiServer\Context as BaseContext;
@@ -27,6 +29,7 @@ class RewindSnapshotResource extends AbstractDatabaseResource
         protected UserSnapshotGenerator $generator,
         protected SettingsRepositoryInterface $settings,
         protected RewindYear $years,
+        protected Dispatcher $events,
     ) {
     }
 
@@ -361,6 +364,9 @@ class RewindSnapshotResource extends AbstractDatabaseResource
             $query->whereIn('user_id', $userIds);
         }
 
-        return $query->delete();
+        $count = $query->delete();
+        $this->events->dispatch(new SnapshotsDeleted($year, $groupId ?: null, $count));
+
+        return $count;
     }
 }

@@ -7,9 +7,11 @@ use Flarum\Foundation\ValidationException;
 use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\Exception\PermissionDeniedException;
 use Flarum\User\User;
+use HuseyinFiliz\Rewind\Event\SnapshotGenerated;
 use HuseyinFiliz\Rewind\Metric\MetricRegistry;
 use HuseyinFiliz\Rewind\Model\CommunitySnapshot;
 use HuseyinFiliz\Rewind\Model\RewindSnapshot;
+use Illuminate\Contracts\Events\Dispatcher;
 
 class UserSnapshotGenerator
 {
@@ -17,6 +19,7 @@ class UserSnapshotGenerator
         protected MetricRegistry $metrics,
         protected SettingsRepositoryInterface $settings,
         protected GenerationLock $locks,
+        protected Dispatcher $events,
     ) {
     }
 
@@ -53,7 +56,7 @@ class UserSnapshotGenerator
 
             $this->locks->assertOwned($lock);
 
-            return RewindSnapshot::updateOrCreate(
+            $snapshot = RewindSnapshot::updateOrCreate(
                 ['user_id' => $user->id, 'year' => $year],
                 [
                     'data' => $data,
@@ -61,6 +64,10 @@ class UserSnapshotGenerator
                     'is_public' => $existing ? $existing->is_public : (bool) $this->settings->get('huseyinfiliz-rewind.default_public', false),
                 ]
             );
+
+            $this->events->dispatch(new SnapshotGenerated($snapshot, ! $snapshot->wasRecentlyCreated));
+
+            return $snapshot;
         } finally {
             $lock->release();
         }

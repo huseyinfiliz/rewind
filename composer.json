@@ -16,6 +16,7 @@
         "flarum/core": "^2.0"
     },
     "suggest": {
+        "flarum/audit": "Records Rewind generation, visibility, deletion, and template management actions",
         "flarum/likes": "Required for likes received/given and best friend metrics",
         "flarum/mentions": "Required for mentions received/given and best friend mentions metrics",
         "fof/badges": "Required for badges earned and badge leaderboard metrics",
@@ -92,6 +93,7 @@
         "analyse:phpstan": "Runs static code analysis using PHPStan."
     },
     "require-dev": {
+        "flarum/audit": "^2.0",
         "flarum/likes": "^2.0",
         "flarum/tags": "^2.0",
         "flarum/testing": "^2.0",
